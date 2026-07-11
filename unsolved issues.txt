@@ -13,6 +13,7 @@
 
 ✅ 해결됨 (2026-07-11 20:30): `integration/power_grid_tda.py` IndentationError 수정 (버튼 섹션 16-space → 8-space). 취약점 분석 3개 메서드 (`_vulnerability_analysis`, `_show_vulnerability_window`, `_color_vr_nodes_by_vulnerability`) 전체 파일에 재작성하여 통합 완료.
 
-## 문서 업데이트 필요
-- **TODO.md**: 최신 완료 항목 반영 완료 ✅
-- **history.md**: 현재 작업 로그 추가 완료 ✅
+✅ 해결됨 (2026-07-11): persistence diagram에서 birth=death 점 필터링. `graph_editor.py`의 `_draw_pd()`, `power_grid_tda.py`의 `_draw_persistence_diagram()`, matplotlib scatter section 총 3곳에서 `b >= d - 1e-12` 조건으로 대각선 위 점들을 제거하여 시각적 노이즈 제거.
+
+### 미해결 이슈
+  TDA탐색기와 TDA euclidian의 결과가 다른데, 다를 이유가 있다고 생각되지않음, 달라야하다면, 왜 다른지 설명하고 아니라면 문제를 고칠 것

@@ -1606,6 +1606,8 @@ def _draw_pd(canvas, h0_pairs, h1_pairs, max_dist, width=450, height=450):
         return x, y
 
     for b, d in h0_pairs:
+        if b >= d - 1e-12:
+            continue
         cx, cy = to_canvas(b, d)
         canvas.create_oval(
             cx - 3, cy - 3, cx + 3, cy + 3,
@@ -1613,6 +1615,8 @@ def _draw_pd(canvas, h0_pairs, h1_pairs, max_dist, width=450, height=450):
         )
 
     for b, d in h1_pairs:
+        if b >= d - 1e-12:
+            continue
         cx, cy = to_canvas(b, d)
         canvas.create_oval(
             cx - 3, cy - 3, cx + 3, cy + 3,

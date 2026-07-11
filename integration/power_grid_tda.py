@@ -370,14 +370,18 @@ class PowerGridTDAExplorer:
             y = margin + ph - (d / pm) * ph
             return x, y
 
-        # H0 points (blue)
+        # H0 points (blue) — skip birth=death (diagonal) points
         for b, d in h0:
+            if b >= d - 1e-12:
+                continue
             cx, cy = tc(b, d)
             canvas.create_oval(cx - 3, cy - 3, cx + 3, cy + 3,
                                fill="#4A90D9", outline="#4A90D9")
 
-        # H1 points (red)
+        # H1 points (red) — skip birth=death (diagonal) points
         for b, d in h1:
+            if b >= d - 1e-12:
+                continue
             cx, cy = tc(b, d)
             canvas.create_oval(cx - 3, cy - 3, cx + 3, cy + 3,
                                fill="#FF6B6B", outline="#FF6B6B")
@@ -506,11 +510,11 @@ class PowerGridTDAExplorer:
                 ax.set_facecolor("#2A2A3E")
                 ax.set_title(name, color="white", fontsize=9)
 
-                # Scatter persistence diagram
-                births_h0 = [b for b, d in h0 if d < 1e10]
-                deaths_h0 = [d for b, d in h0 if d < 1e10]
-                births_h1 = [b for b, d in h1 if d < 1e10]
-                deaths_h1 = [d for b, d in h1 if d < 1e10]
+                # Scatter persistence diagram — skip birth=death (diagonal) points
+                births_h0 = [b for b, d in h0 if d < 1e10 and b < d - 1e-12]
+                deaths_h0 = [d for b, d in h0 if d < 1e10 and b < d - 1e-12]
+                births_h1 = [b for b, d in h1 if d < 1e10 and b < d - 1e-12]
+                deaths_h1 = [d for b, d in h1 if d < 1e10 and b < d - 1e-12]
 
                 ax.scatter(births_h0, deaths_h0, c="#4A90D9", s=8, alpha=0.7, label="H₀")
                 ax.scatter(births_h1, deaths_h1, c="#FF6B6B", s=8, alpha=0.7, label="H₁")

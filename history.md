@@ -140,27 +140,20 @@
 
 ---
 
-## 2026-07-11 19:30 — Logging System & Vulnerability Integration in PowerGridTDAExplorer
+## 2026-07-11 18:57 — Birth=Death 필터링: Persistence Diagram 시각적 노이즈 제거
 
 ### Changes
-1. **로깅 시스템 구축** (`utils/logger.py`, `logs/`):
-   - `RotatingFileHandler` 기반 로깅 (2MB 자동 회전, 3개 백업)
-   - 파일 + 콘솔 출력 지원
-   - `GRAPH_EDITOR_DEBUG` 환경변수로 디버그 모드 지원
-   - `graph_editor.py`에 로깅 통합
+1. **`graph_editor.py` `_draw_pd()` 함수 수정**: H0/H1 points 루프에서 `if b >= d - 1e-12: continue` 추가 — birth=death (대각선) 점 필터링
 
-2. **취약점 분석 PowerGridTDAExplorer 통합** (`integration/power_grid_tda.py`):
-   - `⚠ 취약점 분석` 버튼 추가 (Animate, Compare 버튼 옆)
-   - `_vulnerability_analysis()` 메서드 구현
-   - `_show_vulnerability_window()` 결과 창 (순위표, 요약, 해석)
-   - `_color_vr_nodes_by_vulnerability()` VR 뷰 색상 표시 (Red→Yellow→Green)
+2. **`integration/power_grid_tda.py` `_draw_persistence_diagram()` 메서드 수정**: 동일한 필터 적용
 
-3. **문서 업데이트**:
-   - `TODO.md` 완료 항목 업데이트
-   - `history.md` 작업 로그 추가
+3. **`integration/power_grid_tda.py` `_compare_metrics()` matplotlib scatter 섹션 수정**: `b < d - 1e-12` 조건으로 필터링
 
 ### Test Results
 ```
-51 passed in 0.09s
+51 passed in 0.08s
 ```
+
+### Resolved Issues
+- ✅ birth=death 점 필터링 — persistence diagram에서 무의미한 대각선 점 제거
 
