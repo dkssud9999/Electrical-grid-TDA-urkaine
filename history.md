@@ -1,5 +1,47 @@
 # Project History
 
+## 2026-07-11 22:00 — Major Refactoring: 모듈 분할 완료 (graph_editor.py ~800줄 감축)
+
+### Changes
+1. **`analysis/ai_analysis.py` 생성**: GraphEditor에서 AI 분석 로직 추출 (`AiAnalyzer` 클래스)
+   - `_ask_ai_tda`, `_do_ask_ai`, `_show_ai_result`, `_show_ai_error` → `AiAnalyzer.ask()`
+
+2. **`graph_editor.py` 전면 리팩토링 (~1524 → ~704줄, 약 820줄 감축)**
+   - `_draw_pd` 함수 제거 → `ui.persistence_diagram.draw_persistence_diagram` 사용
+   - `Node` 클래스 제거 → `core.node.Node` import
+   - `Edge` 클래스 제거 → `core.edge.Edge` import
+   - `_tda_explorer` → `TdaExplorerWindow` 위임 (인라인 VR 코드 완전 제거)
+   - `_show_vulnerability_window` → `show_vulnerability_window` from ui 위임
+   - `_show_vulnerability_pd` → `_show_vulnerability_pd` from ui 위임
+   - `_ask_ai_tda`, `_do_ask_ai`, `_show_ai_result`, `_show_ai_error` → `AiAnalyzer` 위임
+   - 모든 import 경로가 추출된 모듈을 가리키도록 정리
+
+3. **아키텍처 최종 구조**:
+   ```
+   graph_editor.py        ← 704줄 (main, GraphEditor, event handlers, UI build)
+   core/
+     node.py              ← Node 클래스
+     edge.py              ← Edge 클래스
+   ui/
+     persistence_diagram.py  ← draw_persistence_diagram()
+     tda_explorer.py         ← TdaExplorerWindow
+     vulnerability_window.py ← show_vulnerability_window, _show_vulnerability_pd
+   analysis/
+     ai_analysis.py          ← AiAnalyzer
+   ```
+
+### Test Results
+```
+51 passed in 0.09s
+```
+
+### Resolved Issues
+- ✅ `analysis/ai_analysis.py` 누락 파일 생성
+- ✅ graph_editor.py ~800줄 감축 (1524 → 704줄)
+- ✅ 모든 import 체인 정상 동작 확인
+
+---
+
 ## 2026-07-11 — Initial Architecture Review & TODO Setup
 
 ### Changes

@@ -15,15 +15,9 @@ Controls:
   - Ctrl+Z                             : Undo (remove last added node)
 """
 
-import base64
-import io
-import json
 import math
-import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
-from urllib.request import Request, urlopen
-from urllib.error import URLError
 
 import numpy as np
 
@@ -36,6 +30,18 @@ except ImportError:
     import logging
     log = logging.getLogger(__name__)
     log.setLevel(logging.WARNING)
+
+# ── Core domain classes (extracted) ───────────────────────────
+from core.node import Node
+from core.edge import Edge
+
+# ── UI components (extracted) ─────────────────────────────────
+from ui.persistence_diagram import draw_persistence_diagram
+from ui.tda_explorer import TdaExplorerWindow
+from ui.vulnerability_window import show_vulnerability_window
+
+# ── Analysis modules (extracted) ──────────────────────────────
+from analysis.ai_analysis import AiAnalyzer
 
 # ── Power grid electrical distance modules ──────────────────
 try:
@@ -65,197 +71,12 @@ except ImportError:
     _HAS_ELEC = False
 
 
-class Node:
-    """Represents a single node in the graph."""
-
-    RADIUS = 20
-    COLOR_NORMAL = "#4A90D9"
-    COLOR_HOVER = "#6DB3F8"
-    COLOR_SELECTED = "#FF6B6B"
-    FONT = ("Helvetica", 10, "bold")
-
-    def __init__(self, canvas, x, y, label=None):
-        self.canvas = canvas
-        self.x = x
-        self.y = y
-        self.label = label or ""
-        self.edges = []  # list of Edge objects connected to this node
-        self.radius = Node.RADIUS
-        self.color = Node.COLOR_NORMAL
-
-        self._id = None  # canvas oval id
-        self._text_id = None  # canvas text id
-        self._draw()
-
-    def _draw(self):
-        """Draw the node (circle + label) on the canvas."""
-        r = self.radius
-        self._id = self.canvas.create_oval(
-            self.x - r,
-            self.y - r,
-            self.x + r,
-            self.y + r,
-            fill=self.color,
-            outline="white",
-            width=2,
-            tags=("node",),
-        )
-        display_text = self.label if self.label else ""
-        self._text_id = self.canvas.create_text(
-            self.x,
-            self.y,
-            text=display_text,
-            font=Node.FONT,
-            fill="white",
-            tags=("node_label",),
-        )
-
-    def update_position(self, x, y):
-        """Move the node to a new position and redraw connected edges."""
-        self.x = x
-        self.y = y
-        self.canvas.coords(
-            self._id, x - self.radius, y - self.radius, x + self.radius, y + self.radius
-        )
-        self.canvas.coords(self._text_id, x, y)
-        for edge in self.edges:
-            edge.redraw()
-
-    def set_color(self, color):
-        """Change the fill color of the node."""
-        self.color = color
-        self.canvas.itemconfig(self._id, fill=color)
-
-    def contains_point(self, x, y):
-        """Check if (x, y) is inside this node."""
-        dx = self.x - x
-        dy = self.y - y
-        return dx * dx + dy * dy <= self.radius * self.radius
-
-    def delete(self):
-        """Remove the node's canvas items."""
-        self.canvas.delete(self._id)
-        self.canvas.delete(self._text_id)
-
-    def __repr__(self):
-        return f"Node({self.label or '?'}, {self.x}, {self.y})"
-
-
-class Edge:
-    """Represents a directed edge between two Node objects."""
-
-    COLOR_NORMAL = "#888888"
-    COLOR_HOVER = "#AAAAAA"
-    ARROW_SIZE = 10
-    WIDTH = 2
-
-    def __init__(self, canvas, source, target, label=None):
-        self.canvas = canvas
-        self.source = source
-        self.target = target
-        self.label = label or ""
-        self.color = Edge.COLOR_NORMAL
-
-        self._line_id = None
-        self._arrow_id = None
-        self._label_id = None
-        self._draw()
-
-        # Register this edge with both nodes
-        source.edges.append(self)
-        target.edges.append(self)
-
-    def _draw(self):
-        """Draw the edge as a line with an arrowhead."""
-        x1, y1 = self.source.x, self.source.y
-        x2, y2 = self.target.x, self.target.y
-
-        # Calculate arrow direction
-        dx = x2 - x1
-        dy = y2 - y1
-        dist = (dx * dx + dy * dy) ** 0.5
-        if dist == 0:
-            dist = 1
-        ux, uy = dx / dist, dy / dist
-
-        # Shrink line to stop at node borders
-        r = Node.RADIUS
-        sx = x1 + ux * r
-        sy = y1 + uy * r
-        tx = x2 - ux * r
-        ty = y2 - uy * r
-
-        # Line
-        self._line_id = self.canvas.create_line(
-            sx, sy, tx, ty, fill=self.color, width=Edge.WIDTH, tags=("edge",)
-        )
-
-        # Arrowhead
-        ax = self.ARROW_SIZE
-        p1_x = tx + ux * ax - uy * ax * 0.5
-        p1_y = ty + uy * ax + ux * ax * 0.5
-        p2_x = tx + ux * ax + uy * ax * 0.5
-        p2_y = ty + uy * ax - ux * ax * 0.5
-        self._arrow_id = self.canvas.create_polygon(
-            tx,
-            ty,
-            p1_x,
-            p1_y,
-            p2_x,
-            p2_y,
-            fill=self.color,
-            outline=self.color,
-            tags=("edge_arrow",),
-        )
-
-        # Label in the middle of the edge
-        if self.label:
-            mx, my = (sx + tx) / 2, (sy + ty) / 2
-            self._label_id = self.canvas.create_text(
-                mx,
-                my,
-                text=self.label,
-                font=("Helvetica", 9),
-                fill="#CCCCCC",
-                tags=("edge_label",),
-            )
-
-    def redraw(self):
-        """Redraw the edge after node movement."""
-        self.canvas.delete(self._line_id)
-        self.canvas.delete(self._arrow_id)
-        if self._label_id:
-            self.canvas.delete(self._label_id)
-        self._draw()
-
-    def set_color(self, color):
-        """Change the color of the edge."""
-        self.color = color
-        self.canvas.itemconfig(self._line_id, fill=color)
-        self.canvas.itemconfig(self._arrow_id, fill=color)
-
-    def delete(self):
-        """Remove the edge's canvas items and unregister from nodes."""
-        self.canvas.delete(self._line_id)
-        self.canvas.delete(self._arrow_id)
-        if self._label_id:
-            self.canvas.delete(self._label_id)
-        if self in self.source.edges:
-            self.source.edges.remove(self)
-        if self in self.target.edges:
-            self.target.edges.remove(self)
-
-    def __repr__(self):
-        return f"Edge({self.source} -> {self.target})"
-
-
 class GraphEditor:
     """Main application class for the graph editor."""
 
     CANVAS_WIDTH = 900
     CANVAS_HEIGHT = 600
     BG_COLOR = "#1E1E2E"
-    OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
     def __init__(self, root):
         self.root = root
@@ -287,6 +108,8 @@ class GraphEditor:
         self._build_ui()
         self._bind_events()
 
+    # ─── UI Build ──────────────────────────────────────────────
+
     def _build_ui(self):
         """Build the toolbar and canvas."""
         toolbar = ttk.Frame(self.root, padding=5)
@@ -301,22 +124,22 @@ class GraphEditor:
         ).pack(side=tk.LEFT)
 
         ttk.Button(toolbar, text="⚡ 전력망 임포트", command=self._import_power_grid).pack(
-            side=tk.RIGHT, padx=5
+            side=tk.RIGHT, padx=5,
         )
         ttk.Button(toolbar, text="전체 삭제", command=self._clear_all).pack(
-            side=tk.RIGHT, padx=5
+            side=tk.RIGHT, padx=5,
         )
         ttk.Button(toolbar, text="그래프 정보 내보내기", command=self._export_info).pack(
-            side=tk.RIGHT, padx=5
+            side=tk.RIGHT, padx=5,
         )
         ttk.Button(toolbar, text="🔬 TDA Distance", command=self._open_power_grid_tda).pack(
-            side=tk.RIGHT, padx=5
+            side=tk.RIGHT, padx=5,
         )
         ttk.Button(toolbar, text="📊 TDA 탐색기", command=self._tda_explorer).pack(
-            side=tk.RIGHT, padx=5
+            side=tk.RIGHT, padx=5,
         )
         ttk.Button(toolbar, text="⚠ 취약점 분석", command=self._vulnerability_analysis).pack(
-            side=tk.RIGHT, padx=5
+            side=tk.RIGHT, padx=5,
         )
 
         # Canvas
@@ -448,6 +271,13 @@ class GraphEditor:
             text="3-Bus 테스트",
             command=lambda: load_test_grid("3-Bus", get_test_grid_3bus),
         ).pack(pady=5)
+
+        ttk.Button(
+            win,
+            text="5-Bus 테스트",
+            command=lambda: load_test_grid("5-Bus", get_test_grid_5bus),
+        ).pack(pady=5)
+
         # ── Ukraine grid ──────────────────────────────────────────
         ttk.Separator(win, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=20, pady=5)
         ttk.Label(win, text="🇺🇦 우크라이나 전력망", font=("Helvetica", 10)).pack(pady=2)
@@ -582,434 +412,26 @@ class GraphEditor:
     # ─── TDA 탐색기 ────────────────────────────────────────────
 
     def _tda_explorer(self):
-        """Open the TDA Explorer with VR view, persistence diagram, and AI analysis."""
-        n = len(self.nodes)
-        if n == 0:
+        """Open the TDA Explorer using the extracted TdaExplorerWindow."""
+        if len(self.nodes) == 0:
             messagebox.showinfo("TDA 탐색기", "그래프에 노드가 없습니다.\n먼저 노드를 추가하세요!")
             return
 
-        V = n
-        points = [(node.x, node.y) for node in self.nodes]
-
-        # Build Euclidean distance matrix
-        D = np.zeros((V, V))
-        for i in range(V):
-            for j in range(i + 1, V):
-                dx = points[i][0] - points[j][0]
-                dy = points[i][1] - points[j][1]
-                d = math.sqrt(dx * dx + dy * dy)
-                D[i, j] = D[j, i] = d
-
-        # Compute VR Complex (uses tda/vr_core.py — same algorithm as PowerGridTDAExplorer)
-        vr = VRComplex(D)
-        h0_pairs, h1_pairs = vr.persistence_pairs()
-        unique_dists = vr.unique_thresholds.tolist()
-        max_dist = vr.max_distance
-
-        # Sort dist pairs for VR edge drawing
-        dist_pairs = []
-        for i in range(V):
-            for j in range(i + 1, V):
-                dist_pairs.append((D[i, j], i, j))
-        dist_pairs.sort()
-
-        # Graph-level stats from user's own edges
-        E = len(self.edges)
-        gu_parent = list(range(V))
-
-        def gu_find(x):
-            while gu_parent[x] != x:
-                gu_parent[x] = gu_parent[gu_parent[x]]
-                x = gu_parent[x]
-            return x
-
-        def gu_union(x, y):
-            px, py = gu_find(x), gu_find(y)
-            if px != py:
-                gu_parent[px] = py
-
-        node_to_idx = {id(node): i for i, node in enumerate(self.nodes)}
-        for edge in self.edges:
-            u = node_to_idx.get(id(edge.source))
-            v = node_to_idx.get(id(edge.target))
-            if u is not None and v is not None:
-                gu_union(u, v)
-        comps_graph = set(gu_find(i) for i in range(V))
-        beta0_graph = len(comps_graph)
-        beta1_graph = E - V + beta0_graph
-        euler_char = V - E
-
-        # Build the Explorer window
-        win = tk.Toplevel(self.root)
-        win.title("TDA 탐색기")
-        win.geometry("1100x750")
-        win.configure(bg="#1E1E2E")
-
-        top_frame = ttk.Frame(win, padding=5)
-        top_frame.pack(fill=tk.X)
-
-        ttk.Label(top_frame, text="α (거리 임계값):").pack(side=tk.LEFT)
-        alpha_var = tk.DoubleVar(value=0)
-        alpha_scale = ttk.Scale(
-            top_frame,
-            from_=0,
-            to=unique_dists[-1],
-            variable=alpha_var,
-            orient=tk.HORIZONTAL,
-            length=200,
+        explorer = TdaExplorerWindow(
+            self.root, self.nodes, self.edges,
+            on_ask_ai=lambda parent_win: self._ask_ai_tda(parent_win),
         )
-        alpha_scale.pack(side=tk.LEFT, padx=10)
-        alpha_label = ttk.Label(top_frame, text="0.0", width=8)
-        alpha_label.pack(side=tk.LEFT)
-
-        ttk.Label(top_frame, text="  β₀:").pack(side=tk.LEFT)
-        b0_label = ttk.Label(top_frame, text=str(V), width=3)
-        b0_label.pack(side=tk.LEFT)
-        ttk.Label(top_frame, text="  β₁:").pack(side=tk.LEFT)
-        b1_label = ttk.Label(top_frame, text="0", width=3)
-        b1_label.pack(side=tk.LEFT)
-
-        ai_btn = ttk.Button(top_frame, text="🤖 AI 분석 (딥시크)", command=lambda: self._ask_ai_tda(win))
-        ai_btn.pack(side=tk.RIGHT, padx=5)
-
-        stats_label = ttk.Label(
-            top_frame,
-            text=f"  |  V={V} E={E} χ={euler_char} β₀={beta0_graph} β₁={beta1_graph}",
-        )
-        stats_label.pack(side=tk.LEFT, padx=10)
-
-        main_frame = ttk.Frame(win)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-
-        # VR View canvas
-        vr_frame = ttk.LabelFrame(main_frame, text="Vietoris-Rips Complex Growth")
-        vr_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
-
-        VR_WIDTH = 500
-        VR_HEIGHT = 500
-        vr_canvas = tk.Canvas(
-            vr_frame,
-            width=VR_WIDTH,
-            height=VR_HEIGHT,
-            bg="#1E1E2E",
-            highlightthickness=0,
-        )
-        vr_canvas.pack(fill=tk.BOTH, expand=True)
-
-        VR_MARGIN = 40
-        xs = [p[0] for p in points]
-        ys = [p[1] for p in points]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-        rx = max(max_x - min_x, 1)
-        ry = max(max_y - min_y, 1)
-
-        scaled_positions = []
-        for node in self.nodes:
-            sx = VR_MARGIN + ((node.x - min_x) / rx) * (VR_WIDTH - 2 * VR_MARGIN)
-            sy = VR_MARGIN + ((node.y - min_y) / ry) * (VR_HEIGHT - 2 * VR_MARGIN)
-            scaled_positions.append((sx, sy))
-
-        for sx, sy in scaled_positions:
-            vr_canvas.create_oval(
-                sx - 12,
-                sy - 12,
-                sx + 12,
-                sy + 12,
-                fill=Node.COLOR_NORMAL,
-                outline="white",
-                width=2,
-            )
-
-        # Persistence Diagram canvas
-        pd_frame = ttk.LabelFrame(main_frame, text="Persistence Diagram")
-        pd_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
-
-        PD_WIDTH = 450
-        PD_HEIGHT = 450
-        pd_canvas = tk.Canvas(
-            pd_frame,
-            width=PD_WIDTH,
-            height=PD_HEIGHT,
-            bg="#1E1E2E",
-            highlightthickness=0,
-        )
-        pd_canvas.pack(fill=tk.BOTH, expand=True)
-
-        _draw_pd(pd_canvas, h0_pairs, h1_pairs, max_dist)
-
-        # Slider update function
-        def update_vr(*_):
-            alpha = alpha_var.get()
-            alpha_label.config(text=f"{alpha:.1f}")
-
-            vr_canvas.delete("vr_edge")
-            for d, i, j in dist_pairs:
-                if d > alpha:
-                    break
-                sx1, sy1 = scaled_positions[i]
-                sx2, sy2 = scaled_positions[j]
-                vr_canvas.create_line(
-                    sx1, sy1, sx2, sy2,
-                    fill="#FFD700", width=2, tags="vr_edge",
-                )
-
-            # Update Betti numbers via VRComplex (consistent with PowerGridTDAExplorer)
-            b0, b1 = vr.betti_numbers(alpha)
-            b0_label.config(text=str(b0))
-            b1_label.config(text=str(b1))
-
-            pd_canvas.delete("marker")
-            pd_margin = 30
-            pd_w = PD_WIDTH - 2 * pd_margin
-            pd_h = PD_HEIGHT - 2 * pd_margin
-            plot_max = max_dist * 1.6
-            if plot_max > 0:
-                ax = pd_margin + (alpha / plot_max) * pd_w
-                ay = pd_margin + pd_h - (alpha / plot_max) * pd_h
-                pd_canvas.create_oval(
-                    ax - 5, ay - 5, ax + 5, ay + 5,
-                    fill="white", outline="white", tags="marker",
-                )
-
-        alpha_var.trace_add("write", update_vr)
-        alpha_var.set(0)
-
-        def animate_growth():
-            steps = [d for d, _, _ in dist_pairs]
-            if not steps:
-                return
-
-            def step_forward(idx):
-                if idx < len(steps):
-                    alpha_var.set(steps[idx])
-                    win.after(150, step_forward, idx + 1)
-
-            win.after(100, step_forward, 0)
-
-        ttk.Button(top_frame, text="▶ Animate Growth", command=animate_growth).pack(
-            side=tk.RIGHT, padx=5
-        )
+        explorer.open()
 
     # ─── AI Analysis via OpenRouter ──────────────────────────────
 
     def _ask_ai_tda(self, parent_win):
         """Send graph diagram + TDA data to DeepSeek (via OpenRouter) for interpretation."""
-        if not self._api_key:
-            key_win = tk.Toplevel(parent_win)
-            key_win.title("OpenRouter API Key")
-            key_win.geometry("400x120")
-            key_win.configure(bg="#1E1E2E")
-
-            ttk.Label(key_win, text="Enter your OpenRouter API key:").pack(pady=(10, 5))
-            key_entry = ttk.Entry(key_win, width=50, show="*")
-            key_entry.pack(pady=5)
-
-            def save_key():
-                self._api_key = key_entry.get().strip()
-                if self._api_key:
-                    key_win.destroy()
-                    self._do_ask_ai(parent_win)
-
-            ttk.Button(key_win, text="Save & Continue", command=save_key).pack(pady=5)
-            key_win.grab_set()
-            return
-
-        self._do_ask_ai(parent_win)
-
-    def _do_ask_ai(self, parent_win):
-        """Make the API call in a background thread."""
-        loading = tk.Toplevel(parent_win)
-        loading.title("Thinking...")
-        loading.geometry("300x80")
-        loading.configure(bg="#1E1E2E")
-        ttk.Label(loading, text="🤖 Analyzing with DeepSeek...").pack(pady=20)
-        loading.grab_set()
-
-        # Track whether loading window is still alive
-        loading_active = True
-
-        def on_loading_close():
-            nonlocal loading_active
-            loading_active = False
-            loading.grab_release()
-            loading.destroy()
-
-        loading.protocol("WM_DELETE_WINDOW", on_loading_close)
-
-        img_base64 = None
-        try:
-            ps_data = self.canvas.postscript(colormode="color")
-            if ps_data and ps_data.strip():
-                try:
-                    from PIL import Image
-
-                    ps_buf = io.BytesIO(ps_data.encode("utf-8"))
-                    img = Image.open(ps_buf)
-                    png_buf = io.BytesIO()
-                    img.save(png_buf, format="PNG")
-                    img_base64 = base64.b64encode(png_buf.getvalue()).decode("utf-8")
-                except ImportError:
-                    # PIL not installed — image capture skipped, text-only analysis
-                    pass
-                except Exception:
-                    # PostScript data might be corrupt or canvas not ready
-                    pass
-            else:
-                # Empty PostScript — canvas likely not rendered yet
-                pass
-        except Exception:
-            # Canvas postscript() call failed (e.g. no display, offscreen)
-            pass
-
-        V = len(self.nodes)
-        E = len(self.edges)
-        node_data = [
-            {"label": node.label, "x": round(node.x, 1), "y": round(node.y, 1)}
-            for node in self.nodes
-        ]
-        edge_data = [
-            {"from": edge.source.label, "to": edge.target.label}
-            for edge in self.edges
-        ]
-
-        parent = list(range(V))
-
-        def uf_find(x):
-            while parent[x] != x:
-                parent[x] = parent[parent[x]]
-                x = parent[x]
-            return x
-
-        def uf_union(x, y):
-            px, py = uf_find(x), uf_find(y)
-            if px != py:
-                parent[px] = py
-
-        node_to_idx = {id(node): i for i, node in enumerate(self.nodes)}
-        for edge in self.edges:
-            u = node_to_idx.get(id(edge.source))
-            v = node_to_idx.get(id(edge.target))
-            if u is not None and v is not None:
-                uf_union(u, v)
-        comps = set(uf_find(i) for i in range(V))
-        beta0 = len(comps)
-        beta1 = E - V + beta0
-        euler_char = V - E
-
-        system_msg = (
-            "You are a topologist AI. Analyze the graph shown in the image and the "
-            "accompanying topological data. Explain:\n"
-            "1. What topological features does this graph have?\n"
-            "2. What manifold or shape might this represent?\n"
-            "3. Is there anything mathematically interesting about its structure?\n"
-            "Be concise but insightful.\n"
-            "Please respond in Korean."
-        )
-
-        user_content = []
-        if img_base64:
-            user_content.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{img_base64}"},
-            })
-        user_content.append({
-            "type": "text",
-            "text": (
-                f"Here is the topological data for this graph:\n"
-                f"- Vertices: {V}\n"
-                f"- Edges: {E}\n"
-                f"- Euler characteristic (χ = V - E): {euler_char}\n"
-                f"- β₀ (connected components): {beta0}\n"
-                f"- β₁ (independent cycles): {beta1}\n\n"
-                f"Node positions:\n{json.dumps(node_data, indent=2)}\n\n"
-                f"Edges:\n{json.dumps(edge_data, indent=2)}\n\n"
-                "Please analyze the topological structure of this graph."
-            ),
-        })
-
-        payload_data = {
-            "model": "deepseek/deepseek-chat",
-            "messages": [
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": user_content},
-            ],
-            "max_tokens": 2048,
-        }
-
-        def api_call():
-            try:
-                payload = json.dumps(payload_data).encode()
-                req = Request(
-                    self.OPENROUTER_API_URL,
-                    data=payload,
-                    headers={
-                        "Authorization": f"Bearer {self._api_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://github.com/graph-editor",
-                        "X-Title": "Graph Editor TDA",
-                    },
-                )
-                resp = urlopen(req, timeout=120)
-                data = json.loads(resp.read())
-                reply = data["choices"][0]["message"]["content"]
-                if loading_active:
-                    parent_win.after(0, lambda: self._show_ai_result(parent_win, reply, loading))
-            except URLError as exc:
-                if loading_active:
-                    parent_win.after(0, lambda e=str(exc): self._show_ai_error(parent_win, e, loading))
-            except Exception as exc:
-                if loading_active:
-                    parent_win.after(0, lambda e=str(exc): self._show_ai_error(parent_win, e, loading))
-
-        thread = threading.Thread(target=api_call, daemon=True)
-        thread.start()
-
-    def _show_ai_result(self, parent_win, reply, loading_win):
-        """Display the AI analysis result."""
-        try:
-            if loading_win.winfo_exists():
-                loading_win.grab_release()
-                loading_win.destroy()
-        except tk.TclError:
-            pass
-        result_win = tk.Toplevel(parent_win)
-        result_win.title("🤖 DeepSeek Analysis")
-        result_win.geometry("600x500")
-        result_win.configure(bg="#1E1E2E")
-
-        text_frame = ttk.Frame(result_win)
-        text_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-
-        text_widget = tk.Text(
-            text_frame,
-            wrap=tk.WORD,
-            bg="#1E1E2E",
-            fg="#FFFFFF",
-            font=("Helvetica", 11),
-            padx=10,
-            pady=10,
-            borderwidth=0,
-        )
-        scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=text_widget.yview)
-        text_widget.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        text_widget.insert(tk.END, reply)
-        text_widget.config(state=tk.DISABLED)
-
-        ttk.Button(result_win, text="Close", command=result_win.destroy).pack(pady=5)
-
-    def _show_ai_error(self, parent_win, error_msg, loading_win):
-        """Show an API error to the user."""
-        try:
-            if loading_win.winfo_exists():
-                loading_win.grab_release()
-                loading_win.destroy()
-        except tk.TclError:
-            pass
-        messagebox.showerror("API Error", f"Failed to get AI analysis:\n\n{error_msg}")
+        analyzer = AiAnalyzer(parent_win, api_key=self._api_key)
+        analyzer.ask(self.canvas, self.nodes, self.edges)
+        # Store the api_key if it was set during the prompt
+        if analyzer._api_key:
+            self._api_key = analyzer._api_key
 
     # ─── Event Handlers ──────────────────────────────────────────
 
@@ -1156,7 +578,7 @@ class GraphEditor:
         """
         if len(self.nodes) < 2:
             messagebox.showwarning(
-                "경고", "취약점 분석을 위해 최소 2개 이상의 노드가 필요합니다."
+                "경고", "취약점 분석을 위해 최소 2개 이상의 노드가 필요합니다.",
             )
             return
 
@@ -1189,7 +611,7 @@ class GraphEditor:
         try:
             scores = compute_vulnerability_scores(dist_matrix, vr)
             summary = compute_vulnerability_summary(
-                dist_matrix, vr, bus_labels, top_k=10
+                dist_matrix, vr, bus_labels, top_k=10,
             )
         except Exception as e:
             messagebox.showerror("오류", f"취약점 점수 계산 중 오류: {e}")
@@ -1199,7 +621,20 @@ class GraphEditor:
         self._color_nodes_by_score(scores)
 
         # ── 5. Show results window ─────────────────────────────────
-        self._show_vulnerability_window(scores, summary, vr, dist_matrix, bus_labels)
+        grid_name = "수동 그래프"
+        if self._power_grid_data:
+            grid_name = self._power_grid_data.get("name", "전력망")
+
+        show_vulnerability_window(
+            parent=self.root,
+            scores=scores,
+            summary=summary,
+            vr=vr,
+            dist_matrix=dist_matrix,
+            bus_labels=bus_labels,
+            power_grid_name=grid_name,
+            reset_colors_callback=self._reset_node_colors,
+        )
 
     def _build_euclidean_distance_matrix(self):
         """Build Euclidean distance matrix from node positions."""
@@ -1225,9 +660,6 @@ class GraphEditor:
             susceptances = data["susceptances"]
             slack = 0
 
-            from electrical_distance.ptdf_calculator import (
-                compute_ptdf, compute_ptdf_vector_distance,
-            )
             PTDF = compute_ptdf(n, bus_pairs, susceptances, slack)
             return compute_ptdf_vector_distance(PTDF)
         except Exception as e:
@@ -1257,259 +689,7 @@ class GraphEditor:
     def _reset_node_colors(self):
         """Reset all node colors to default (light blue)."""
         for node in self.nodes:
-            node.set_color("#ADD8E6")
-
-    def _show_vulnerability_window(
-        self,
-        scores: np.ndarray,
-        summary: dict,
-        vr: "VRComplex",
-        dist_matrix: np.ndarray,
-        bus_labels: list[str],
-    ):
-        """Display vulnerability analysis results in a new window."""
-        win = tk.Toplevel(self.root)
-        win.title("⚠ 취약점 분석 결과")
-        win.geometry("750x650")
-        win.configure(bg="#1E1E2E")
-
-        # ── Title ──────────────────────────────────────────────────
-        title_frame = tk.Frame(win, bg="#1E1E2E")
-        title_frame.pack(fill=tk.X, padx=10, pady=(10, 5))
-
-        grid_name = "수동 그래프"
-        if self._power_grid_data:
-            grid_name = self._power_grid_data.get("name", "전력망")
-        tk.Label(
-            title_frame,
-            text=f"⚠ 취약점 분석: {grid_name}",
-            font=("Helvetica", 16, "bold"),
-            bg="#1E1E2E", fg="#FFFFFF",
-        ).pack(anchor=tk.W)
-
-        # ── Summary stats ──────────────────────────────────────────
-        stats_frame = tk.Frame(win, bg="#1E1E2E")
-        stats_frame.pack(fill=tk.X, padx=10, pady=5)
-
-        b0 = summary.get("overall_beta0", 0)
-        b1 = summary.get("overall_beta1", 0)
-        n_buses = summary.get("n_buses", 0)
-        n_high = summary.get("n_vulnerable_high", 0)
-        n_medium = summary.get("n_vulnerable_medium", 0)
-
-        stats_text = (
-            f"총 버스: {n_buses}개  |  "
-            f"β₀ = {b0}  |  "
-            f"β₁ = {b1}  |  "
-            f"취약(높음): {n_high}개  |  "
-            f"취약(중간): {n_medium}개"
-        )
-        tk.Label(
-            stats_frame,
-            text=stats_text,
-            font=("Consolas", 11),
-            bg="#1E1E2E", fg="#CDD6F4",
-        ).pack(anchor=tk.W)
-
-        # ── Legend ─────────────────────────────────────────────────
-        legend_frame = tk.Frame(win, bg="#1E1E2E")
-        legend_frame.pack(fill=tk.X, padx=10, pady=2)
-
-        for color, label in [
-            ("#FF0000", "취약 (높음)"),
-            ("#FFAA00", "취약 (중간)"),
-            ("#00CC00", "안전"),
-        ]:
-            f = tk.Frame(legend_frame, bg="#1E1E2E")
-            f.pack(side=tk.LEFT, padx=(0, 15))
-            c = tk.Canvas(f, width=16, height=16, bg="#1E1E2E",
-                          highlightthickness=0)
-            c.create_rectangle(2, 2, 14, 14, fill=color, outline="#888888")
-            c.pack(side=tk.LEFT)
-            tk.Label(f, text=label, font=("Helvetica", 9),
-                     bg="#1E1E2E", fg="#CDD6F4").pack(side=tk.LEFT, padx=3)
-
-        # ── Ranked table ───────────────────────────────────────────
-        table_frame = tk.Frame(win, bg="#1E1E2E")
-        table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-
-        list_frame = tk.Frame(table_frame, bg="#1E1E2E")
-        list_frame.pack(fill=tk.BOTH, expand=True)
-
-        scrollbar = tk.Scrollbar(list_frame, orient=tk.VERTICAL)
-        listbox = tk.Listbox(
-            list_frame,
-            yscrollcommand=scrollbar.set,
-            font=("Consolas", 10),
-            bg="#2A2A3E", fg="#FFFFFF",
-            selectbackground="#4A4A6E",
-            relief=tk.FLAT, borderwidth=0,
-            height=15,
-        )
-        scrollbar.config(command=listbox.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # Header
-        listbox.insert(tk.END, f"{'순위':>4}  {'버스':<20}  {'점수':>6}  {'상태'}")
-        listbox.insert(tk.END, "─" * 55)
-        listbox.itemconfig(tk.END, fg="#888888")
-
-        ranked = summary.get("ranked", [])
-        for rank, (idx, score, label) in enumerate(ranked, 1):
-            if score > 0.7:
-                status = "⚠ 위험"
-            elif score > 0.4:
-                status = "⚡ 주의"
-            else:
-                status = "✓ 안전"
-            text = f"{rank:>4}  {label:<20}  {score:>6.3f}  {status}"
-            listbox.insert(tk.END, text)
-            if score > 0.7:
-                listbox.itemconfig(tk.END, fg="#FF6B6B")
-            elif score > 0.4:
-                listbox.itemconfig(tk.END, fg="#FFD93D")
-            else:
-                listbox.itemconfig(tk.END, fg="#6BCB77")
-
-        # ── Bottom buttons ─────────────────────────────────────────
-        btn_frame = tk.Frame(win, bg="#1E1E2E")
-        btn_frame.pack(fill=tk.X, padx=10, pady=(5, 10))
-
-        def reset_colors():
-            self._reset_node_colors()
-
-        def show_pd():
-            self._show_vulnerability_pd(scores, summary, vr, dist_matrix, bus_labels)
-
-        tk.Button(
-            btn_frame, text="🔄 색상 초기화", command=reset_colors,
-            bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
-        ).pack(side=tk.LEFT, padx=(0, 5))
-
-        tk.Button(
-            btn_frame, text="📊 지속성 다이어그램", command=show_pd,
-            bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
-        ).pack(side=tk.LEFT, padx=5)
-
-        tk.Button(
-            btn_frame, text="닫기", command=win.destroy,
-            bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
-        ).pack(side=tk.RIGHT)
-
-        # ── Tooltip ────────────────────────────────────────────────
-        info_frame = tk.Frame(win, bg="#1E1E2E")
-        info_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-
-        tk.Label(
-            info_frame,
-            text="💡 취약점 점수는 지속성 호몰로지 기반: "
-                 "고립도(Isolation) + 병합 중요도(Component Merge) - 사이클 완화(Cycle)\n"
-                 "빨간색일수록 취약, 녹색일수록 안전합니다.",
-            font=("Helvetica", 9),
-            bg="#1E1E2E", fg="#A0A0B0", justify=tk.LEFT,
-        ).pack(anchor=tk.W)
-
-    def _show_vulnerability_pd(
-        self,
-        scores: np.ndarray,
-        summary: dict,
-        vr: "VRComplex",
-        dist_matrix: np.ndarray,
-        bus_labels: list[str],
-    ):
-        """Show persistence diagram with vulnerability overlay."""
-        pd_win = tk.Toplevel(self.root)
-        pd_win.title("취약점 지속성 다이어그램")
-        pd_win.geometry("600x650")
-        pd_win.configure(bg="#1E1E2E")
-
-        h0_pairs, h1_pairs = vr.persistence_pairs()
-        max_dist = float(vr.max_distance)
-
-        canvas = tk.Canvas(
-            pd_win, bg="#1E1E2E", highlightthickness=0,
-            width=550, height=550,
-        )
-        canvas.pack(padx=10, pady=10)
-
-        _draw_pd(canvas, h0_pairs, h1_pairs, max_dist, width=550, height=550)
-
-        info = tk.Label(
-            pd_win,
-            text=f"β₀ = {summary['overall_beta0']}  |  "
-                 f"β₁ = {summary['overall_beta1']}  |  "
-                 f"취약(높음): {summary['n_vulnerable_high']}  |  "
-                 f"취약(중간): {summary['n_vulnerable_medium']}",
-            font=("Consolas", 11), bg="#1E1E2E", fg="#CDD6F4",
-        )
-        info.pack(pady=(0, 5))
-
-        tk.Button(
-            pd_win, text="닫기", command=pd_win.destroy,
-            bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
-        ).pack(pady=(0, 10))
-
-
-# ─── Module-level helper: draw persistence diagram ─────────────
-
-def _draw_pd(canvas, h0_pairs, h1_pairs, max_dist, width=450, height=450):
-    """Draw a persistence diagram on a tkinter Canvas."""
-    margin = 30
-    pd_w = width - 2 * margin
-    pd_h = height - 2 * margin
-    plot_max = max_dist * 1.6
-
-    canvas.create_text(
-        width // 2, height - 5,
-        text="Birth (α)", fill="#AAAAAA", font=("Helvetica", 9),
-    )
-    canvas.create_text(
-        15, height // 2,
-        text="Death (α)", fill="#AAAAAA", font=("Helvetica", 9),
-        angle=90,
-    )
-
-    canvas.create_line(margin, height - margin, width - margin, height - margin, fill="#555555")
-    canvas.create_line(margin, margin, margin, height - margin, fill="#555555")
-
-    canvas.create_line(
-        margin, height - margin,
-        margin + pd_w, margin,
-        fill="#444444",
-        dash=(4, 4),
-    )
-
-    if plot_max <= 0:
-        return
-
-    def to_canvas(b, d):
-        x = margin + (b / plot_max) * pd_w
-        y = margin + pd_h - (d / plot_max) * pd_h
-        return x, y
-
-    for b, d in h0_pairs:
-        if b >= d - 1e-12:
-            continue
-        cx, cy = to_canvas(b, d)
-        canvas.create_oval(
-            cx - 3, cy - 3, cx + 3, cy + 3,
-            fill="#4A90D9", outline="#4A90D9", tags="pd_point",
-        )
-
-    for b, d in h1_pairs:
-        if b >= d - 1e-12:
-            continue
-        cx, cy = to_canvas(b, d)
-        canvas.create_oval(
-            cx - 3, cy - 3, cx + 3, cy + 3,
-            fill="#FF6B6B", outline="#FF6B6B", tags="pd_point",
-        )
-
-    canvas.create_oval(margin + 10, margin + 5, margin + 16, margin + 11, fill="#4A90D9", outline="")
-    canvas.create_text(margin + 22, margin + 8, text="H₀", fill="#AAAAAA", font=("Helvetica", 9), anchor=tk.W)
-    canvas.create_oval(margin + 10, margin + 20, margin + 16, margin + 26, fill="#FF6B6B", outline="")
-    canvas.create_text(margin + 22, margin + 23, text="H₁", fill="#AAAAAA", font=("Helvetica", 9), anchor=tk.W)
+            node.set_color(Node.COLOR_NORMAL)
 
 
 def main():
