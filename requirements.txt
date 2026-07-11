@@ -1,18 +1,18 @@
 # Core dependencies
-numpy>=1.24
+numpy>=1.24   (request completed)
 
 # Testing
-pytest>=7.0
+pytest>=7.0  (request completed)
 
 # Optional: for image capture in AI analysis
-pillow
+pillow  (request complted)
 
 # Optional: for metric comparison charts
-matplotlib
+matplotlib  (request completed)
 
 # Optional: for PyPSA format import
-pypsa
+pypsa  (cant find, i gotta recheck)
 
 # Optional: for advanced matrix operations
-scipy
+scipy  (request completed)
 

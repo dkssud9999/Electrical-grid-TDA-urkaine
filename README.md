@@ -106,15 +106,32 @@ cd graph_editor
 
 **Core dependencies** (required for basic graph editing and VR computation):
 ```bash
+# Using pip
 pip install numpy
+
+# Arch Linux (pacman)
+sudo pacman -S python-numpy
 ```
 
 **Optional dependencies** (for power grid import and AI analysis):
 ```bash
+# Using pip
 pip install pillow          # For canvas image capture (AI Analysis)
 pip install scipy           # For certain matrix operations
 pip install pypsa           # For PyPSA format import
 pip install matplotlib      # For metric comparison charts
+
+# Arch Linux (pacman)
+sudo pacman -S python-pillow python-scipy python-matplotlib
+```
+
+**Testing dependencies:**
+```bash
+# Using pip
+pip install pytest
+
+# Arch Linux (pacman)
+sudo pacman -S python-pytest
 ```
 
 ### Verify Installation
