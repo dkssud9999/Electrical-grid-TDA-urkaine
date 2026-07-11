@@ -123,13 +123,20 @@ class EffectiveResistanceDistance(ElectricalDistance):
 
 class BusLODFDistance(ElectricalDistance):
     """
-    Distance based on LODF sensitivity vectors.
+    Distance based on PTDF-weighted LODF sensitivity vectors.
 
-    For each bus i, compute v_i[k] = mean LODF of lines incident to i
-    for outage of line k. Then d(i,j) = ||v_i - v_j||₂.
+    For each bus i and line k outage, compute:
+        v_i[k] = Σ_{l incident to bus i} PTDF[l,i] × LODF[l,k]
+
+    This weights each incident line's LODF outage impact by the PTDF
+    sensitivity of that line at bus i. The PTDF weighting breaks the
+    symmetry that pure LODF aggregation exhibits on symmetric grids.
+
+    Then d(i,j) = ||v_i - v_j||₂.
 
     Interpretation:
-        Two buses are close if they respond similarly to line outages.
+        Two buses are close if their injection patterns respond similarly
+        to line outages, accounting for directional sensitivity.
     """
 
     def __init__(self, slack_bus: int = 0):

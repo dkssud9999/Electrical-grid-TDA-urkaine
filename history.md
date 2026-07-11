@@ -169,3 +169,40 @@ graph_editor/
 ### Files Modified
 - `tda/vr_core.py` — triangle killing 로직 수정 (break 제거, youngest edge rule 개선)
 
+---
+
+## 2026-07-11 16:30 — Bus LODF Sensitivity 근본적 재설계: PTDF-weighted Signed LODF
+
+### Changes
+1. **`compute_bus_lodf_sensitivity()` 완전 재작성** (`electrical_distance/ptdf_calculator.py`):
+   - **문제**: 기존 abs-sum 방식 (v_i[k] = Σ|LODF[incident, k]|)이 대칭적 그리드에서 서로 다른 버스의 민감도 벡터가 동일해지는 문제 발생
+     - 3-bus: 모든 버스 쌍 D[i,j] ≈ 0 (완전 붕괴)
+     - 5-bus: D[1,3] ≈ 0, D[2,4] ≈ 0 (대칭 버스 쌍에서 거리 0)
+     - 원인: LODF 절댓값이 대칭적 위치에서 동일하며, incident line 기반 합계가 정보를 잃어버림
+   - **수정**: `v_i[k] = Σ_{l incident to bus i} PTDF[l,i] × LODF[l,k]`로 변경
+     - PTDF[l,i]를 가중치로 사용하여 버스별 고유한 민감도 부여
+     - PTDF 벡터는 대칭적 그리드에서도 버스별로 고유하므로 문제 해결
+     - 부호 보존으로 방향성 정보 활용
+
+2. **수정 전/후 비교**:
+
+   | 그리드 | 수정 전 (abs-sum) | 수정 후 (PTDF-weighted) |
+   |---|---|---|
+   | 3-bus | 모든 D[i,j] ≈ 0 (3개 쌍) | 모두 고유 (0.96, 0.19, 1.15) |
+   | 5-bus D[1,3] | 4.1e-15 (≈0) | 1.570 |
+   | 5-bus D[2,4] | 2.6e-15 (≈0) | 0.964 |
+
+### Root Cause
+abs-sum 방식은 각 incident line의 |LODF|를 단순 합산하는데, 대칭적 그리드에서 |LODF|는 대칭 위치에서 동일한 값을 가지므로 버스 구분 불가. PTDF 벡터는 PTDF 계산 과정에서 버스 위치의 비대칭성을 반영하므로, PTDF를 가중치로 사용하면 대칭성이 깨짐.
+
+### Files Modified
+- `electrical_distance/ptdf_calculator.py` — `compute_bus_lodf_sensitivity()` 재작성
+- `unsolved issues.txt` — 해결된 이슈 업데이트
+- `TODO.md` — 진행 상황 업데이트
+- `history.md` — 본 항목
+
+### Test Results
+```
+51 passed in 0.11s
+```
+

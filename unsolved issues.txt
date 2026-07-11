@@ -2,4 +2,4 @@
 
 ✅ 해결됨 (2026-07-11): VR Complex H1 사이클 death가 infinity로 잘못 표시되던 버그 수정. persistence_pairs()의 triangle killing 루프에서 break 제거 및 youngest edge rule 개선.
 
-⚠ 해결되지 않음: Bus LODF Sensitivity 메트릭이 5-bus grid에서 D[0,4]=0을 반환 (서로 다른 버스 간 거리 0). 이는 metric property를 위반하며, TDA 분석 결과의 신뢰성을 떨어뜨림. 원인: compute_bus_lodf_sensitivity()에서 버스 0과 4의 평균 LODF 벡터가 동일하게 계산됨. (해당 버스들의 incident line set이 우연히 동일한 평균을 생성)
+✅ 해결됨 (2026-07-11): Bus LODF Sensitivity 메트릭의 대칭성 문제 수정. 기존 abs-sum 방식은 |LODF| 합계를 사용하여 대칭적 그리드에서 버스들이 동일한 민감도 벡터를 갖는 문제 발생. 새로운 PTDF-weighted signed LODF 방식 (v_i[k] = Σ PTDF[l,i] × LODF[l,k])으로 대체하여 모든 버스 쌍에서 고유한 거리 보장. 3-bus 및 5-bus 테스트 통과.

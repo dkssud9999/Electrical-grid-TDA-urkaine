@@ -305,11 +305,19 @@ def compute_bus_lodf_sensitivity(
     Compute a bus-level distance based on LODF sensitivity.
 
     For each bus i, compute a vector v_i where:
-        v_i[k] = Σ_{l incident to bus i} LODF[l, k]
+        v_i[k] = Σ_{l incident to bus i} PTDF[l, i] · LODF[l, k]
+
+    This weights each incident line's LODF outage impact by the PTDF
+    sensitivity of that line at bus i. Intuitively:
+        "When line k goes out, how does the flow change on lines
+         incident to bus i, weighted by bus i's injection influence
+         on those lines?"
+
+    The PTDF weighting breaks the symmetry that pure LODF aggregation
+    (sum of |LODF|) exhibits on symmetric grids, where symmetric buses
+    produce identical sensitivity vectors.
 
     Then d(i, j) = ||v_i - v_j||₂.
-
-    This captures: "how similarly do two buses respond to line outages?"
 
     Parameters
     ----------
@@ -329,13 +337,16 @@ def compute_bus_lodf_sensitivity(
         bus_to_lines[f].append(l)
         bus_to_lines[t].append(l)
 
-    # Build bus sensitivity vectors
-    # v_i[k] = average LODF impact of line k outage on lines incident to bus i
+    # Build bus sensitivity vectors using PTDF-weighted signed LODF.
+    # Using PTDF[l,i] as weight breaks the symmetry that pure |LODF|
+    # aggregation exhibits on symmetric grids, since PTDF vectors are
+    # unique per bus even in symmetric configurations.
     v = np.zeros((n_bus, n_line), dtype=np.float64)
     for i in range(n_bus):
         incident = bus_to_lines[i]
         if incident:
-            v[i, :] = np.mean(LODF[incident, :], axis=0)
+            for l in incident:
+                v[i, :] += PTDF[l, i] * LODF[l, :]
 
     # Distance matrix
     D = np.zeros((n_bus, n_bus), dtype=np.float64)
