@@ -16,14 +16,14 @@ from tkinter import ttk, messagebox
 
 import numpy as np
 
-from ..electrical_distance.ptdf_calculator import (
+from electrical_distance.ptdf_calculator import (
     compute_ptdf,
     compute_lodf,
     compute_effective_resistance_matrix,
     compute_ptdf_vector_distance,
     compute_bus_lodf_sensitivity,
 )
-from ..tda.vr_core import VRComplex
+from tda.vr_core import VRComplex
 
 
 # ─── Distance metric registry ────────────────────────────────

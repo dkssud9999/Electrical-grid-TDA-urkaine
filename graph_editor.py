@@ -27,16 +27,16 @@ from urllib.error import URLError
 
 # ── Power grid electrical distance modules ──────────────────
 try:
-    from .electrical_distance.ptdf_calculator import (
+    from electrical_distance.ptdf_calculator import (
         compute_ptdf,
         compute_lodf,
         compute_effective_resistance_matrix,
         compute_ptdf_vector_distance,
     )
-    from .tda.vr_core import VRComplex
-    from .integration.grid_to_graph import GridGraphConverter
-    from .integration.power_grid_tda import PowerGridTDAExplorer, METRICS
-    from .power_grid.importer import load_grid, get_test_grid_3bus, get_test_grid_5bus
+    from tda.vr_core import VRComplex
+    from integration.grid_to_graph import GridGraphConverter
+    from integration.power_grid_tda import PowerGridTDAExplorer, METRICS
+    from power_grid.importer import load_grid, get_test_grid_3bus, get_test_grid_5bus
     _HAS_ELEC = True
 except ImportError:
     _HAS_ELEC = False
