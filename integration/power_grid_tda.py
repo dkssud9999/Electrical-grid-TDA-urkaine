@@ -24,6 +24,7 @@ from electrical_distance.ptdf_calculator import (
     compute_bus_lodf_sensitivity,
 )
 from tda.vr_core import VRComplex
+from tda.vulnerability import compute_vulnerability_scores, rank_vulnerable_buses, compute_vulnerability_summary
 
 
 # ─── Distance metric registry ────────────────────────────────
@@ -205,13 +206,15 @@ class PowerGridTDAExplorer:
         alpha_label = ttk.Label(slider_frame, text="α = 0.00", width=12)
         alpha_label.pack(side=tk.LEFT)
 
-        # Animate + Compare buttons
+        # Animate + Compare + Vulnerability buttons
         ttk.Button(slider_frame, text="▶ Animate",
                    command=lambda: self._animate(vr_canvas, pd_canvas, bc_canvas,
                                                   metric_var, alpha_var, alpha_scale,
                                                   b0_lbl, b1_lbl, desc_label)).pack(side=tk.RIGHT, padx=5)
         ttk.Button(slider_frame, text="📊 Compare All Metrics",
                    command=lambda: self._compare_metrics()).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(slider_frame, text="⚠ 취약점 분석",
+                   command=self._vulnerability_analysis).pack(side=tk.RIGHT, padx=5)
 
         # State
         self._metric_var = metric_var
@@ -539,4 +542,186 @@ class PowerGridTDAExplorer:
                 )
 
         ttk.Button(win, text="Close", command=win.destroy).pack(pady=5)
+
+    def _vulnerability_analysis(self):
+        """Run vulnerability analysis on the current metric and show results."""
+        if self._current_D is None or self._current_vr is None:
+            messagebox.showwarning("No Data", "Compute VR first by selecting a metric.")
+            return
+
+        metric_name = self._metric_var.get()
+        D = self._current_D
+        vr = self._current_vr
+
+        # Get bus labels
+        bus_labels = self.data.get("bus_labels", None)
+        if bus_labels is None:
+            bus_labels = [f"B{i}" for i in range(D.shape[0])]
+
+        # Compute vulnerability summary
+        summary = compute_vulnerability_summary(D, vr, bus_labels=bus_labels, top_k=5)
+
+        # Show results window
+        self._show_vulnerability_window(summary, metric_name)
+
+        # Color VR nodes by vulnerability
+        self._color_vr_nodes_by_vulnerability(self._vr_canvas, summary["scores"])
+
+    def _show_vulnerability_window(self, summary: dict, metric_name: str):
+        """Display vulnerability analysis results in a new window."""
+        win = tk.Toplevel(self.win)
+        win.title(f"Vulnerability Analysis — {metric_name}")
+        win.geometry("700x600")
+        win.configure(bg="#1E1E2E")
+
+        # Title
+        title = ttk.Label(win, text="⚠ Bus Vulnerability Ranking",
+                          font=("Helvetica", 14, "bold"),
+                          foreground="#FF6B6B", background="#1E1E2E")
+        title.pack(pady=(10, 5))
+
+        # Summary info
+        info_frame = ttk.Frame(win)
+        info_frame.pack(fill=tk.X, padx=20, pady=5)
+
+        summary_text = (
+            f"Total Buses: {summary['n_buses']}  |  "
+            f"β₀ = {summary['overall_beta0']}  |  "
+            f"β₁ = {summary['overall_beta1']}  |  "
+            f"High Risk (>0.7): {summary['n_vulnerable_high']}  |  "
+            f"Medium Risk (0.4-0.7): {summary['n_vulnerable_medium']}"
+        )
+        ttk.Label(info_frame, text=summary_text,
+                  foreground="#CCCCCC", background="#1E1E2E").pack()
+
+        # Ranking table
+        table_frame = ttk.LabelFrame(win, text="Vulnerability Ranking (Top 5)")
+        table_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+
+        # Treeview for ranking
+        columns = ("rank", "bus", "score", "level")
+        tree = ttk.Treeview(table_frame, columns=columns, show="headings",
+                            height=8, selectmode="browse")
+        tree.heading("rank", text="Rank")
+        tree.heading("bus", text="Bus")
+        tree.heading("score", text="Score")
+        tree.heading("level", text="Risk Level")
+        tree.column("rank", width=60, anchor=tk.CENTER)
+        tree.column("bus", width=100, anchor=tk.CENTER)
+        tree.column("score", width=120, anchor=tk.CENTER)
+        tree.column("level", width=150, anchor=tk.CENTER)
+
+        scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        tree.pack(fill=tk.BOTH, expand=True)
+
+        # Style for treeview
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("Treeview", background="#2A2A3E", foreground="white",
+                        fieldbackground="#2A2A3E", font=("Helvetica", 10))
+        style.configure("Treeview.Heading", background="#3A3A5E", foreground="white",
+                        font=("Helvetica", 10, "bold"))
+
+        # Populate rows
+        for rank, (idx, score, label) in enumerate(summary["ranked"], 1):
+            if score > 0.7:
+                level = "🔴 High Risk"
+                tag = "high"
+            elif score > 0.4:
+                level = "🟡 Medium Risk"
+                tag = "medium"
+            else:
+                level = "🟢 Low Risk"
+                tag = "low"
+
+            tree.insert("", tk.END, values=(rank, label, f"{score:.4f}", level),
+                        tags=(tag,))
+
+        tree.tag_configure("high", foreground="#FF6B6B")
+        tree.tag_configure("medium", foreground="#FFD700")
+        tree.tag_configure("low", foreground="#4A90D9")
+
+        # Interpretation section
+        interp_frame = ttk.LabelFrame(win, text="Interpretation")
+        interp_frame.pack(fill=tk.X, padx=20, pady=10)
+
+        n_high = summary["n_vulnerable_high"]
+        n_medium = summary["n_vulnerable_medium"]
+        b1 = summary["overall_beta1"]
+
+        interp_lines = []
+        if n_high > 0:
+            interp_lines.append(
+                f"• {n_high} bus(es) show HIGH vulnerability — these buses are electrically "
+                "isolated or act as critical bridges in the distance space."
+            )
+        if n_medium > 0:
+            interp_lines.append(
+                f"• {n_medium} bus(es) show MEDIUM vulnerability — monitor these for potential issues."
+            )
+        if b1 == 0:
+            interp_lines.append(
+                "• No H₁ cycles detected — the grid has a tree-like topology with no redundant paths."
+            )
+        else:
+            interp_lines.append(
+                f"• {b1} H₁ cycle(s) detected — these provide redundancy and reduce vulnerability."
+            )
+
+        interp_text = "\n".join(interp_lines) if interp_lines else "• No significant vulnerabilities detected."
+        ttk.Label(interp_frame, text=interp_text,
+                  foreground="#CCCCCC", background="#1E1E2E",
+                  wraplength=600, justify=tk.LEFT).pack(padx=10, pady=10)
+
+        # Close button
+        ttk.Button(win, text="Close", command=win.destroy).pack(pady=10)
+
+    def _color_vr_nodes_by_vulnerability(self, canvas, scores):
+        """Recolor VR view nodes based on vulnerability scores (Red→Yellow→Green)."""
+        # Find all node ovals and text items in the canvas
+        # We need to delete and redraw the nodes with new colors
+        # The nodes are drawn in _draw_vr_view, so we'll modify them there
+
+        # For now, just update the colors on the existing canvas
+        # Nodes are drawn as ovals; we need to find them by tag or position
+        # Since we don't have tags, we'll use the stored node positions
+
+        if not self._node_positions or len(self._node_positions) != len(scores):
+            return
+
+        cw = self.CANVAS_W
+        ch = self.CANVAS_H
+        positions = self._node_positions
+        xs = [p[0] for p in positions]
+        ys = [p[1] for p in positions]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        rx = max(max_x - min_x, 1)
+        ry = max(max_y - min_y, 1)
+        margin = 40
+        scaled = []
+        for x, y in positions:
+            sx = margin + ((x - min_x) / rx) * (cw - 2 * margin)
+            sy = margin + ((y - min_y) / ry) * (ch - 2 * margin)
+            scaled.append((sx, sy))
+
+        r = 14
+        for i, (sx, sy) in enumerate(scaled):
+            # Color: Red (high vuln) → Yellow (medium) → Green (low)
+            s = float(scores[i])
+            if s > 0.7:
+                color = "#FF4444"  # Red — high
+            elif s > 0.4:
+                color = "#FFAA00"  # Yellow — medium
+            else:
+                color = "#44BB44"  # Green — low
+
+            canvas.create_oval(sx - r, sy - r, sx + r, sy + r,
+                               fill=color, outline="white", width=2,
+                               tags=("vuln_node",))
+            canvas.create_text(sx, sy, text=str(i),
+                               fill="white", font=("Helvetica", 9, "bold"),
+                               tags=("vuln_label",))
 

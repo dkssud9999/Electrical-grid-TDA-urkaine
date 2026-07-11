@@ -27,6 +27,16 @@ from urllib.error import URLError
 
 import numpy as np
 
+# ── Logging ────────────────────────────────────────────────────────
+try:
+    from utils.logger import get_logger, setup_logging
+    setup_logging()
+    log = get_logger(__name__)
+except ImportError:
+    import logging
+    log = logging.getLogger(__name__)
+    log.setLevel(logging.WARNING)
+
 # ── Power grid electrical distance modules ──────────────────
 try:
     from electrical_distance.ptdf_calculator import (

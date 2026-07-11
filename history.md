@@ -71,6 +71,26 @@
 
 ---
 
+## 2026-07-11 21:30 — Vulnerability Analysis 완전 재통합 & 들여쓰기 오류 최종 수정
+
+### Changes
+1. **`integration/power_grid_tda.py` 완전 재작성**:
+   - `_vulnerability_analysis()`, `_show_vulnerability_window()`, `_color_vr_nodes_by_vulnerability()` 3개 메서드 클래스에 정식 추가
+   - `⚠ 취약점 분석` 버튼 안정적으로 추가 (Animate, Compare 버튼 옆)
+   - 모든 들여쓰기 8-space로 통일, SyntaxError 완전 해결
+   - `tda.vulnerability` import 정상화
+
+2. **테스트 확인**: 51개 테스트 전부 통과 ✅
+
+3. **`unsolved issues.txt` 업데이트**: IndentationError 해결 표기
+
+### Test Results
+```
+51 passed in 0.08s
+```
+
+---
+
 ## 2026-07-11 16:30 — Bus LODF Sensitivity 근본적 재설계: PTDF-weighted Signed LODF
 
 ### Changes
@@ -116,5 +136,31 @@
 ### Test Results
 ```
 51 passed in 0.08s
+```
+
+---
+
+## 2026-07-11 19:30 — Logging System & Vulnerability Integration in PowerGridTDAExplorer
+
+### Changes
+1. **로깅 시스템 구축** (`utils/logger.py`, `logs/`):
+   - `RotatingFileHandler` 기반 로깅 (2MB 자동 회전, 3개 백업)
+   - 파일 + 콘솔 출력 지원
+   - `GRAPH_EDITOR_DEBUG` 환경변수로 디버그 모드 지원
+   - `graph_editor.py`에 로깅 통합
+
+2. **취약점 분석 PowerGridTDAExplorer 통합** (`integration/power_grid_tda.py`):
+   - `⚠ 취약점 분석` 버튼 추가 (Animate, Compare 버튼 옆)
+   - `_vulnerability_analysis()` 메서드 구현
+   - `_show_vulnerability_window()` 결과 창 (순위표, 요약, 해석)
+   - `_color_vr_nodes_by_vulnerability()` VR 뷰 색상 표시 (Red→Yellow→Green)
+
+3. **문서 업데이트**:
+   - `TODO.md` 완료 항목 업데이트
+   - `history.md` 작업 로그 추가
+
+### Test Results
+```
+51 passed in 0.09s
 ```
 

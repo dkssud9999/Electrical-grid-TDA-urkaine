@@ -312,48 +312,217 @@ def load_ukraine_detailed(
     return g
 
 
-def get_sample_ukraine_grid() -> dict:
-    """Return a sample Ukraine grid segment for testing.
+def get_ukraine_330kv_grid() -> dict:
+    """
+    Return a comprehensive 18-bus model of Ukraine's 330 kV backbone.
 
-    This is a simplified 6-bus segment of Ukraine's 330 kV network
-    around the Dnipro region, including Zaporizhzhia NPP.
+    This model captures the major transmission corridors, nuclear power
+    plants, and load centers of Ukraine's high-voltage grid:
 
-    This is for testing purposes only. Real data should be loaded
-    from external files.
+    **Regions & Buses:**
+      - **North**: Pivnichna (0), Kyiv (1), Chornobyl (2)
+      - **Northwest**: Rivne NPP (3), Khmelnytskyi NPP (4)
+      - **West**: Burshtyn TES (5), Lviv (6)
+      - **Southwest**: Dniester PSPP (7), Vinnytsia (8), Mohyliv-Podilskyi (9)
+      - **South**: Pivdennoukrainska NPP (10), Odessa (11), Mykolaiv (12)
+      - **Southeast**: Zaporizhzhia NPP (13), Zaporizhzhia (14)
+      - **Center/East**: Kryvyi Rih (15), Dnipro (16), Kharkiv (17)
+
+    **Topology:**
+    ```
+                 Chornobyl(2) -- Pivnichna(0) -- Rivne NPP(3) -- Lviv(6)
+                       |              |               |             |
+                      Kyiv(1)    KhNP(4) -- Burshtyn(5)            |
+                       |           |                               |
+                     Dnipro(16)  Vinnytsia(8)                     |
+                       |        /    |    \\                        |
+                   Poltava   Dniester(7) Mohyliv(9)              |
+                       |         |                                |
+                    Kharkiv(17)  |                                |
+                              SUNPP(10) -------------------------+
+                              /    |    \\
+                         Odessa(11) Mykolaiv(12)
+                                      |
+                                   Kryvyi Rih(15)
+                                      |
+                                 ZNPP(13) -- Zaporizhzhia(14)
+    ```
 
     Returns
     -------
     dict
-        Sample grid dict.
+        Standardized grid dict with 18 buses, 25 lines.
     """
     return {
-        "name": "Ukraine Grid Sample (Dnipro Region)",
+        "name": "Ukraine 330 kV Backbone (18-bus)",
         "buses": [
-            {"id": 0, "name": "Zaporizhzhia NPP", "x": 350, "y": 200, "v_nom": 330.0},
-            {"id": 1, "name": "Dniprovska",       "x": 300, "y": 350, "v_nom": 330.0},
-            {"id": 2, "name": "Dnipro",            "x": 450, "y": 250, "v_nom": 330.0},
-            {"id": 3, "name": "Zaporizhzhia",      "x": 350, "y": 300, "v_nom": 330.0},
-            {"id": 4, "name": "Kakhovka",          "x": 250, "y": 400, "v_nom": 330.0},
-            {"id": 5, "name": "Melitopol",         "x": 150, "y": 350, "v_nom": 330.0},
+            {"id": 0,  "name": "Pivnichna",              "x": 370, "y": 100, "v_nom": 330.0},
+            {"id": 1,  "name": "Kyiv",                   "x": 370, "y": 160, "v_nom": 330.0},
+            {"id": 2,  "name": "Chornobyl",              "x": 320, "y": 80,  "v_nom": 330.0},
+            {"id": 3,  "name": "Rivne NPP",              "x": 200, "y": 140, "v_nom": 330.0},
+            {"id": 4,  "name": "Khmelnytskyi NPP",       "x": 210, "y": 220, "v_nom": 330.0},
+            {"id": 5,  "name": "Burshtyn TES",           "x": 120, "y": 270, "v_nom": 330.0},
+            {"id": 6,  "name": "Lviv",                   "x": 100, "y": 180, "v_nom": 330.0},
+            {"id": 7,  "name": "Dniester PSPP",          "x": 220, "y": 320, "v_nom": 330.0},
+            {"id": 8,  "name": "Vinnytsia",              "x": 280, "y": 270, "v_nom": 330.0},
+            {"id": 9,  "name": "Mohyliv-Podilskyi",      "x": 270, "y": 350, "v_nom": 330.0},
+            {"id": 10, "name": "Pivdennoukrainska NPP",  "x": 370, "y": 400, "v_nom": 330.0},
+            {"id": 11, "name": "Odessa",                 "x": 350, "y": 480, "v_nom": 330.0},
+            {"id": 12, "name": "Mykolaiv",               "x": 420, "y": 430, "v_nom": 330.0},
+            {"id": 13, "name": "Zaporizhzhia NPP",       "x": 510, "y": 330, "v_nom": 330.0},
+            {"id": 14, "name": "Zaporizhzhia",           "x": 510, "y": 380, "v_nom": 330.0},
+            {"id": 15, "name": "Kryvyi Rih",             "x": 440, "y": 300, "v_nom": 330.0},
+            {"id": 16, "name": "Dnipro",                 "x": 530, "y": 250, "v_nom": 330.0},
+            {"id": 17, "name": "Kharkiv",                "x": 640, "y": 190, "v_nom": 330.0},
         ],
         "lines": [
-            {"id": 0, "name": "Z-NPP-Dniprovska",  "from_bus": 0, "to_bus": 1, "x": 0.04, "r": 0.004, "rate": 600},
-            {"id": 1, "name": "Z-NPP-Dnipro",      "from_bus": 0, "to_bus": 2, "x": 0.05, "r": 0.005, "rate": 600},
-            {"id": 2, "name": "Z-NPP-Zaporizhzhia", "from_bus": 0, "to_bus": 3, "x": 0.03, "r": 0.003, "rate": 600},
-            {"id": 3, "name": "Dnipro-Dniprovska",  "from_bus": 2, "to_bus": 1, "x": 0.06, "r": 0.006, "rate": 400},
-            {"id": 4, "name": "Dniprovska-Kakhovka", "from_bus": 1, "to_bus": 4, "x": 0.07, "r": 0.007, "rate": 400},
-            {"id": 5, "name": "Dniprovska-Zaporizhzhia", "from_bus": 1, "to_bus": 3, "x": 0.05, "r": 0.005, "rate": 400},
-            {"id": 6, "name": "Kakhovka-Melitopol", "from_bus": 4, "to_bus": 5, "x": 0.08, "r": 0.008, "rate": 300},
+            # ── Northern ring ────────────────────────────────────
+            {"id": 0,  "name": "Pivnichna-Kyiv",            "from_bus": 0,  "to_bus": 1,  "x": 0.025, "r": 0.0025, "rate": 800},
+            {"id": 1,  "name": "Pivnichna-Chornobyl",       "from_bus": 0,  "to_bus": 2,  "x": 0.030, "r": 0.0030, "rate": 600},
+            {"id": 2,  "name": "Chornobyl-Kyiv",            "from_bus": 2,  "to_bus": 1,  "x": 0.040, "r": 0.0040, "rate": 600},
+
+            # ── Northwest corridor ──────────────────────────────
+            {"id": 3,  "name": "Pivnichna-Rivne NPP",       "from_bus": 0,  "to_bus": 3,  "x": 0.110, "r": 0.011, "rate": 600},
+            {"id": 4,  "name": "Rivne NPP-Khmelnytskyi NPP","from_bus": 3,  "to_bus": 4,  "x": 0.030, "r": 0.003, "rate": 800},
+            {"id": 5,  "name": "Rivne NPP-Lviv",            "from_bus": 3,  "to_bus": 6,  "x": 0.060, "r": 0.006, "rate": 500},
+
+            # ── Western region ──────────────────────────────────
+            {"id": 6,  "name": "Lviv-Burshtyn TES",         "from_bus": 6,  "to_bus": 5,  "x": 0.060, "r": 0.006, "rate": 500},
+            {"id": 7,  "name": "Burshtyn TES-Khmelnytskyi","from_bus": 5,  "to_bus": 4,  "x": 0.080, "r": 0.008, "rate": 500},
+
+            # ── Southwest ───────────────────────────────────────
+            {"id": 8,  "name": "Khmelnytskyi NPP-Vinnytsia","from_bus": 4,  "to_bus": 8,  "x": 0.050, "r": 0.005, "rate": 600},
+            {"id": 9,  "name": "Vinnytsia-Dniester PSPP",   "from_bus": 8,  "to_bus": 7,  "x": 0.060, "r": 0.006, "rate": 500},
+            {"id": 10, "name": "Vinnytsia-Mohyliv",         "from_bus": 8,  "to_bus": 9,  "x": 0.030, "r": 0.003, "rate": 400},
+            {"id": 11, "name": "Dniester PSPP-Mohyliv",     "from_bus": 7,  "to_bus": 9,  "x": 0.015, "r": 0.0015,"rate": 400},
+
+            # ── Central spine ───────────────────────────────────
+            {"id": 12, "name": "Kyiv-Vinnytsia",            "from_bus": 1,  "to_bus": 8,  "x": 0.060, "r": 0.006, "rate": 600},
+            {"id": 13, "name": "Kyiv-Dnipro",               "from_bus": 1,  "to_bus": 16, "x": 0.140, "r": 0.014, "rate": 600},
+
+            # ── South ───────────────────────────────────────────
+            {"id": 14, "name": "Vinnytsia-SUNPP",           "from_bus": 8,  "to_bus": 10, "x": 0.060, "r": 0.006, "rate": 500},
+            {"id": 15, "name": "SUNPP-Odessa",              "from_bus": 10, "to_bus": 11, "x": 0.060, "r": 0.006, "rate": 500},
+            {"id": 16, "name": "SUNPP-Mykolaiv",            "from_bus": 10, "to_bus": 12, "x": 0.030, "r": 0.003, "rate": 500},
+            {"id": 17, "name": "Mykolaiv-Odessa",           "from_bus": 12, "to_bus": 11, "x": 0.040, "r": 0.004, "rate": 400},
+            {"id": 18, "name": "Mykolaiv-Zaporizhzhia",     "from_bus": 12, "to_bus": 14, "x": 0.080, "r": 0.008, "rate": 500},
+
+            # ── East / Dnipro region ────────────────────────────
+            {"id": 19, "name": "ZNPP-Zaporizhzhia",         "from_bus": 13, "to_bus": 14, "x": 0.015, "r": 0.0015,"rate": 800},
+            {"id": 20, "name": "ZNPP-Kryvyi Rih",           "from_bus": 13, "to_bus": 15, "x": 0.050, "r": 0.005, "rate": 600},
+            {"id": 21, "name": "Zaporizhzhia-Dnipro",       "from_bus": 14, "to_bus": 16, "x": 0.025, "r": 0.0025,"rate": 600},
+            {"id": 22, "name": "Kryvyi Rih-Dnipro",         "from_bus": 15, "to_bus": 16, "x": 0.050, "r": 0.005, "rate": 500},
+            {"id": 23, "name": "Kryvyi Rih-SUNPP",          "from_bus": 15, "to_bus": 10, "x": 0.080, "r": 0.008, "rate": 500},
+            {"id": 24, "name": "Dnipro-Kharkiv",            "from_bus": 16, "to_bus": 17, "x": 0.090, "r": 0.009, "rate": 600},
         ],
         "generators": [
-            {"bus": 0, "p_mw": 6000, "name": "Zaporizhzhia NPP"},
-            {"bus": 2, "p_mw": 500, "name": "Dnipro HPP"},
+            {"bus": 3,  "p_mw": 2000, "name": "Rivne NPP"},
+            {"bus": 4,  "p_mw": 2000, "name": "Khmelnytskyi NPP"},
+            {"bus": 5,  "p_mw": 2300, "name": "Burshtyn TES"},
+            {"bus": 7,  "p_mw": 1200, "name": "Dniester PSPP"},
+            {"bus": 10, "p_mw": 3000, "name": "Pivdennoukrainska NPP"},
+            {"bus": 13, "p_mw": 6000, "name": "Zaporizhzhia NPP"},
+            {"bus": 15, "p_mw": 3000, "name": "Kryvyi Rih TPP"},
+            {"bus": 16, "p_mw": 500,  "name": "Dnipro HPP"},
         ],
         "loads": [
-            {"bus": 3, "p_mw": 400, "name": "Zaporizhzhia Load"},
-            {"bus": 4, "p_mw": 300, "name": "Kakhovka Load"},
-            {"bus": 5, "p_mw": 200, "name": "Melitopol Load"},
+            {"bus": 1,  "p_mw": 2000, "name": "Kyiv Load"},
+            {"bus": 6,  "p_mw": 500,  "name": "Lviv Load"},
+            {"bus": 11, "p_mw": 800,  "name": "Odessa Load"},
+            {"bus": 12, "p_mw": 400,  "name": "Mykolaiv Load"},
+            {"bus": 14, "p_mw": 800,  "name": "Zaporizhzhia Load"},
+            {"bus": 15, "p_mw": 2000, "name": "Kryvyi Rih Industrial"},
+            {"bus": 16, "p_mw": 1000, "name": "Dnipro Load"},
+            {"bus": 17, "p_mw": 1500, "name": "Kharkiv Load"},
         ],
         "base_mva": 100.0,
     }
+
+
+def get_large_ukraine_grid() -> dict:
+    """
+    Return a larger 28-bus Ukraine grid model with additional 220 kV
+    substations and regional detail.
+
+    Extends the 18-bus 330 kV backbone with:
+      - **West**: Ternopil, Ivano-Frankivsk, Uzhhorod
+      - **Center**: Cherkasy, Kropyvnytskyi, Poltava
+      - **East**: Sumy, Donbas (Pokrovsk)
+      - **South**: Kherson, Izmail
+
+    Returns
+    -------
+    dict
+        Standardized grid dict with 28 buses, 36 lines.
+    """
+    g = get_ukraine_330kv_grid()
+
+    # Extend with additional buses
+    extra_buses = [
+        {"id": 18, "name": "Ternopil",          "x": 180, "y": 190, "v_nom": 220.0},
+        {"id": 19, "name": "Ivano-Frankivsk",   "x": 140, "y": 240, "v_nom": 220.0},
+        {"id": 20, "name": "Uzhhorod",          "x": 60,  "y": 150, "v_nom": 220.0},
+        {"id": 21, "name": "Cherkasy",          "x": 420, "y": 200, "v_nom": 220.0},
+        {"id": 22, "name": "Kropyvnytskyi",     "x": 400, "y": 320, "v_nom": 220.0},
+        {"id": 23, "name": "Poltava",           "x": 520, "y": 200, "v_nom": 220.0},
+        {"id": 24, "name": "Sumy",              "x": 600, "y": 130, "v_nom": 220.0},
+        {"id": 25, "name": "Pokrovsk",          "x": 680, "y": 250, "v_nom": 220.0},
+        {"id": 26, "name": "Kherson",           "x": 420, "y": 480, "v_nom": 220.0},
+        {"id": 27, "name": "Izmail",            "x": 310, "y": 530, "v_nom": 220.0},
+    ]
+    g["buses"].extend(extra_buses)
+
+    extra_lines = [
+        # West connections
+        {"id": 25, "name": "Ternopil-Khmelnytskyi", "from_bus": 18, "to_bus": 4,  "x": 0.035, "r": 0.0035, "rate": 300},
+        {"id": 26, "name": "Ternopil-Lviv",         "from_bus": 18, "to_bus": 6,  "x": 0.040, "r": 0.004,  "rate": 300},
+        {"id": 27, "name": "Ivano-Frankivsk-Burshtyn","from_bus": 19, "to_bus": 5, "x": 0.020, "r": 0.002,  "rate": 300},
+        {"id": 28, "name": "Uzhhorod-Lviv",         "from_bus": 20, "to_bus": 6,  "x": 0.070, "r": 0.007,  "rate": 200},
+
+        # Center connections
+        {"id": 29, "name": "Cherkasy-Kyiv",         "from_bus": 21, "to_bus": 1,  "x": 0.040, "r": 0.004,  "rate": 300},
+        {"id": 30, "name": "Cherkasy-Dnipro",       "from_bus": 21, "to_bus": 16, "x": 0.050, "r": 0.005,  "rate": 300},
+        {"id": 31, "name": "Kropyvnytskyi-Vinnytsia","from_bus": 22, "to_bus": 8,  "x": 0.055, "r": 0.0055, "rate": 300},
+        {"id": 32, "name": "Kropyvnytskyi-Kryvyi Rih","from_bus": 22, "to_bus": 15, "x": 0.040, "r": 0.004,  "rate": 300},
+        {"id": 33, "name": "Poltava-Dnipro",        "from_bus": 23, "to_bus": 16, "x": 0.035, "r": 0.0035, "rate": 300},
+
+        # East connections
+        {"id": 34, "name": "Sumy-Kharkiv",          "from_bus": 24, "to_bus": 17, "x": 0.050, "r": 0.005,  "rate": 300},
+        {"id": 35, "name": "Pokrovsk-Kharkiv",      "from_bus": 25, "to_bus": 17, "x": 0.070, "r": 0.007,  "rate": 300},
+
+        # South connections
+        {"id": 36, "name": "Kherson-Mykolaiv",      "from_bus": 26, "to_bus": 12, "x": 0.030, "r": 0.003,  "rate": 300},
+        {"id": 37, "name": "Izmail-Odessa",         "from_bus": 27, "to_bus": 11, "x": 0.060, "r": 0.006,  "rate": 200},
+    ]
+    g["lines"].extend(extra_lines)
+
+    extra_generators = [
+        {"bus": 25, "p_mw": 1000, "name": "Donbas Thermal"},
+        {"bus": 26, "p_mw": 200,  "name": "Kherson Thermal"},
+    ]
+    g["generators"].extend(extra_generators)
+
+    extra_loads = [
+        {"bus": 18, "p_mw": 200, "name": "Ternopil Load"},
+        {"bus": 20, "p_mw": 150, "name": "Uzhhorod Load"},
+        {"bus": 21, "p_mw": 300, "name": "Cherkasy Load"},
+        {"bus": 22, "p_mw": 250, "name": "Kropyvnytskyi Load"},
+        {"bus": 23, "p_mw": 300, "name": "Poltava Load"},
+        {"bus": 24, "p_mw": 300, "name": "Sumy Load"},
+        {"bus": 25, "p_mw": 500, "name": "Donbas Load"},
+        {"bus": 26, "p_mw": 300, "name": "Kherson Load"},
+    ]
+    g["loads"].extend(extra_loads)
+
+    g["name"] = "Ukraine 330/220 kV Grid (28-bus)"
+    return g
+
+
+def get_sample_ukraine_grid() -> dict:
+    """
+    Return a sample Ukraine grid segment for testing (Dnipro region).
+
+    Deprecated: Use `get_ukraine_330kv_grid()` for a comprehensive model.
+    """
+    return get_ukraine_330kv_grid()
 
