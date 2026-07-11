@@ -157,3 +157,30 @@
 ### Resolved Issues
 - ✅ birth=death 점 필터링 — persistence diagram에서 무의미한 대각선 점 제거
 
+---
+
+## 2026-07-11 21:30 — TDA 탐색기 VR 알고리즘 통일: inline VR → VRComplex 클래스
+
+### Changes
+1. **`graph_editor.py` `_tda_explorer()` 리팩토링**:
+   - inline VR 구현 (union-find H₀/H₁ persistence, Betti curves) **완전 제거** (~80줄)
+   - 대신 `VRComplex(D)` 클래스 사용으로 변경 (동일한 `tda/vr_core.py` 알고리즘)
+   - 슬라이더 update 함수의 Betti number 계산도 `vr.betti_numbers(alpha)`로 통일
+   - 별도 `b0_vals` / `b1_vals` pre-compute 제거 (더 이상 필요 없음)
+
+2. **버그 수정**: 기존 inline VR 구현의 H1 triangle killing 로직에 `break` 문이 있어 첫 번째 발견된 삼각형만 처리하는 버그 존재.
+   - `VRComplex`의 올바른 youngest edge rule 구현으로 대체되어 이 버그 해결됨.
+
+### 영향
+- 이제 **동일한 Euclidean 거리 행렬**에 대해 `_tda_explorer()`(📊 TDA 탐색기)와 `PowerGridTDAExplorer`(🔬 TDA Distance → Geographic)가 **완전히 동일한 persistence 결과**를 반환함
+- 코드 중복 제거, 유지보수성 향상
+- `_tda_explorer()`의 코드가 약 80줄 감소하여 더 깔끔해짐
+
+### Test Results
+```
+51 passed in 0.08s
+```
+
+### Resolved Issues
+- ✅ TDA 탐색기 vs TDA Euclidean 결과 불일치 문제 해결 (근본 원인: inline VR 구현 차이 + triangle killing break 버그)
+

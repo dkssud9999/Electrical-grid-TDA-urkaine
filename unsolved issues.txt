@@ -15,5 +15,13 @@
 
 ✅ 해결됨 (2026-07-11): persistence diagram에서 birth=death 점 필터링. `graph_editor.py`의 `_draw_pd()`, `power_grid_tda.py`의 `_draw_persistence_diagram()`, matplotlib scatter section 총 3곳에서 `b >= d - 1e-12` 조건으로 대각선 위 점들을 제거하여 시각적 노이즈 제거.
 
+✅ 해결됨 (2026-07-11 21:00): **TDA 탐색기 vs PowerGridTDAExplorer VR 결과 불일치 문제 해결**
+   - 원인: `graph_editor.py`의 `_tda_explorer()`가 `tda/vr_core.py`의 `VRComplex` 클래스를 사용하지 않고 **자체 inline VR 구현**을 사용하고 있었음
+   - inline 구현의 H1 triangle killing 로직이 `break` 문으로 인해 첫 번째 발견된 삼각형만 처리하는 버그 존재
+   - `betti_numbers()`도 inline union-find로 중복 구현되어 VRComplex와 다른 결과 생성 가능
+   - 수정: `_tda_explorer()`에서 inline VR 구현(약 80줄)을 제거하고 `VRComplex(D)` 클래스로 완전 대체
+   - 슬라이더 update 함수의 Betti number 계산도 `vr.betti_numbers(alpha)`로 통일
+   - 이제 동일한 거리 행렬에 대해 `_tda_explorer()`와 `PowerGridTDAExplorer`가 **완전히 동일한 persistence 결과**를 반환함
+
 ### 미해결 이슈
-  TDA탐색기와 TDA euclidian의 결과가 다른데, 다를 이유가 있다고 생각되지않음, 달라야하다면, 왜 다른지 설명하고 아니라면 문제를 고칠 것
+  (없음 - 모든 알려진 이슈 해결됨)

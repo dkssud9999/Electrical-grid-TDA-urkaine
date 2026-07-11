@@ -591,123 +591,27 @@ class GraphEditor:
         V = n
         points = [(node.x, node.y) for node in self.nodes]
 
-        # Pre-compute VR data
-        dist_pairs = []
+        # Build Euclidean distance matrix
+        D = np.zeros((V, V))
         for i in range(V):
             for j in range(i + 1, V):
                 dx = points[i][0] - points[j][0]
                 dy = points[i][1] - points[j][1]
                 d = math.sqrt(dx * dx + dy * dy)
-                dist_pairs.append((d, i, j))
+                D[i, j] = D[j, i] = d
+
+        # Compute VR Complex (uses tda/vr_core.py — same algorithm as PowerGridTDAExplorer)
+        vr = VRComplex(D)
+        h0_pairs, h1_pairs = vr.persistence_pairs()
+        unique_dists = vr.unique_thresholds.tolist()
+        max_dist = vr.max_distance
+
+        # Sort dist pairs for VR edge drawing
+        dist_pairs = []
+        for i in range(V):
+            for j in range(i + 1, V):
+                dist_pairs.append((D[i, j], i, j))
         dist_pairs.sort()
-
-        unique_dists = sorted({d for d, _, _ in dist_pairs})
-        if not unique_dists:
-            unique_dists = [0]
-
-        max_dist = unique_dists[-1] if unique_dists else 1
-        margin = max_dist * 0.05 or 5
-
-        # Build H0 / H1 persistence pairs (with proper triangle-death computation)
-        vr_parent = list(range(V))
-        comp_birth = [0.0] * V
-
-        def find(x):
-            while vr_parent[x] != x:
-                vr_parent[x] = vr_parent[vr_parent[x]]
-                x = vr_parent[x]
-            return x
-
-        def union(x, y):
-            px, py = find(x), find(y)
-            if px != py:
-                vr_parent[px] = py
-
-        # Track existing edges and active H1 cycles
-        edge_exists: dict[tuple[int, int], float] = {}
-        active_cycles: list[tuple[float, tuple[int, int]]] = []
-
-        h0_pairs = []
-        h1_pairs = []
-
-        for d, i, j in dist_pairs:
-            pi, pj = find(i), find(j)
-            if pi != pj:
-                if comp_birth[pi] <= comp_birth[pj]:
-                    dying, surviving = pj, pi
-                else:
-                    dying, surviving = pi, pj
-                h0_pairs.append((comp_birth[dying], d))
-                comp_birth[surviving] = min(comp_birth[surviving], comp_birth[dying])
-                union(i, j)
-            else:
-                # H1: cycle born
-                active_cycles.append((d, (i, j)))
-
-            # Record edge
-            edge_exists[(i, j)] = d
-            edge_exists[(j, i)] = d
-
-            # Check triangles: find k such that (i,k) and (j,k) also exist
-            for k in range(V):
-                if k == i or k == j:
-                    continue
-                if (i, k) in edge_exists and (j, k) in edge_exists:
-                    d_ik = edge_exists[(i, k)]
-                    d_jk = edge_exists[(j, k)]
-                    triangle_complete_at = max(d, d_ik, d_jk)
-
-                    # Find youngest active cycle involving any of the three edges
-                    candidates = []
-                    for idx, (bd, (ei, ej)) in enumerate(active_cycles):
-                        if ((ei, ej) in ((i, j), (j, i), (i, k), (k, i), (j, k), (k, j))):
-                            candidates.append((bd, idx))
-
-                    if candidates:
-                        candidates.sort(key=lambda x: -x[0])
-                        _, kill_idx = candidates[0]
-                        bd, _ = active_cycles.pop(kill_idx)
-                        h1_pairs.append((bd, triangle_complete_at))
-                        break  # One triangle kills at most one cycle per edge addition
-
-        infinity = max_dist * 1.5
-        for bd, _ in active_cycles:
-            h1_pairs.append((bd, infinity))
-
-        survivors = set(find(i) for i in range(V))
-        for s in survivors:
-            h0_pairs.append((comp_birth[s], infinity))
-
-        # Pre-compute Betti curves
-        b0_vals = []
-        b1_vals = []
-
-        for alpha in unique_dists:
-            p = list(range(V))
-
-            def pp_find(x):
-                while p[x] != x:
-                    p[x] = p[p[x]]
-                    x = p[x]
-                return x
-
-            def pp_union(x, y):
-                px, py = pp_find(x), pp_find(y)
-                if px != py:
-                    p[px] = py
-
-            e_count = 0
-            for d, i, j in dist_pairs:
-                if d <= alpha:
-                    pp_union(i, j)
-                    e_count += 1
-                else:
-                    break
-            comps = set(pp_find(i) for i in range(V))
-            b0 = len(comps)
-            b1 = e_count - V + b0
-            b0_vals.append(b0)
-            b1_vals.append(b1)
 
         # Graph-level stats from user's own edges
         E = len(self.edges)
@@ -850,29 +754,8 @@ class GraphEditor:
                     fill="#FFD700", width=2, tags="vr_edge",
                 )
 
-            # Update Betti numbers
-            p = list(range(V))
-
-            def vf(x):
-                while p[x] != x:
-                    p[x] = p[p[x]]
-                    x = p[x]
-                return x
-
-            def vu(x, y):
-                px, py = vf(x), vf(y)
-                if px != py:
-                    p[px] = py
-
-            ec = 0
-            for d, i, j in dist_pairs:
-                if d > alpha:
-                    break
-                vu(i, j)
-                ec += 1
-            comps = set(vf(i) for i in range(V))
-            b0 = len(comps)
-            b1 = ec - V + b0
+            # Update Betti numbers via VRComplex (consistent with PowerGridTDAExplorer)
+            b0, b1 = vr.betti_numbers(alpha)
             b0_label.config(text=str(b0))
             b1_label.config(text=str(b1))
 
