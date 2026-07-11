@@ -11,7 +11,7 @@ pillow  (request complted)
 matplotlib  (request completed)
 
 # Optional: for PyPSA format import
-pypsa  (cant find, i gotta recheck)
+pypsa  (sudo pacman -S python-pypsa didnt worked, so i dont know, please recheck)
 
 # Optional: for advanced matrix operations
 scipy  (request completed)

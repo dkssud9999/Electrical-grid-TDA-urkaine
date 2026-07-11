@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "/home/yoon/graph_editor/graph_editor.py", line 1583, in <module>
+    main()
+    ^^^^^^
+  File "/home/yoon/graph_editor/graph_editor.py", line 1578, in main
+    app = GraphEditor(root)
+  File "/home/yoon/graph_editor/graph_editor.py", line 276, in __init__
+    self._build_ui()
+    ^^^^^^^^^^^^^^^^
+  File "/home/yoon/graph_editor/graph_editor.py", line 307, in _build_ui
+    ttk.Button(toolbar, text="⚠ 취약점 분석", command=self._vulnerability_analysis).pack(
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'GraphEditor' object has no attribute '_vulnerability_analysis'

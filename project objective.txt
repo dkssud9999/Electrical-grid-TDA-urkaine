@@ -24,3 +24,5 @@ PTDF행렬을 구해서, LODF를 구하고 그 역수를 기반으로 하는게 
 프로젝트의 모든 부분은 이 디렉토리에서 진행되며, 알아서 graph_editor/ 디렉토리를 잘 참고하고 적절한 context를 골라라.
 
 앞으로 history를 추가할 때 반드시 날짜 뿐 아니라 시간도 표시할것, 그리고 작업을 마무리할 땐 사소한 작업이 아니라면 반드시 추가할것
+
+unsolbed issues.txt에는 중요한 issue들을 적어놓을 예정인데, 이들은 최우선적으로 고치도록 노력하고, 고친 issue는 history.md에 고쳤다고 표기하며 unsolved issues.txt에서 지우도록 하라.
