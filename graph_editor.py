@@ -49,6 +49,7 @@ try:
     from integration.grid_to_graph import GridGraphConverter
     from integration.power_grid_tda import PowerGridTDAExplorer, METRICS
     from power_grid.importer import load_grid, get_test_grid_3bus, get_test_grid_5bus
+    from power_grid.ukraine_loader import get_ukraine_330kv_grid, get_large_ukraine_grid
     _HAS_ELEC = True
 except ImportError:
     _HAS_ELEC = False
@@ -437,11 +438,20 @@ class GraphEditor:
             text="3-Bus 테스트",
             command=lambda: load_test_grid("3-Bus", get_test_grid_3bus),
         ).pack(pady=5)
+        # ── Ukraine grid ──────────────────────────────────────────
+        ttk.Separator(win, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=20, pady=5)
+        ttk.Label(win, text="🇺🇦 우크라이나 전력망", font=("Helvetica", 10)).pack(pady=2)
+
         ttk.Button(
             win,
-            text="5-Bus 테스트",
-            command=lambda: load_test_grid("5-Bus", get_test_grid_5bus),
-        ).pack(pady=5)
+            text="18-Bus (330 kV Backbone)",
+            command=lambda: load_test_grid("18-Bus Ukraine", get_ukraine_330kv_grid),
+        ).pack(pady=3)
+        ttk.Button(
+            win,
+            text="28-Bus (330/220 kV 확장)",
+            command=lambda: load_test_grid("28-Bus Ukraine", get_large_ukraine_grid),
+        ).pack(pady=3)
 
         def load_from_file():
             from tkinter import filedialog

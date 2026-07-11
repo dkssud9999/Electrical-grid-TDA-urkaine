@@ -1,5 +1,14 @@
+## 해결된 이슈
 ✅ 해결됨 (2026-07-11): _vulnerability_analysis 및 관련 메서드들이 _on_undo 내부에 로컬 함수로 잘못 정의되어 있었음. GraphEditor 클래스의 실제 메서드로 승격 완료.
 
 ✅ 해결됨 (2026-07-11): VR Complex H1 사이클 death가 infinity로 잘못 표시되던 버그 수정. persistence_pairs()의 triangle killing 루프에서 break 제거 및 youngest edge rule 개선.
 
 ✅ 해결됨 (2026-07-11): Bus LODF Sensitivity 메트릭의 대칭성 문제 수정. 기존 abs-sum 방식은 |LODF| 합계를 사용하여 대칭적 그리드에서 버스들이 동일한 민감도 벡터를 갖는 문제 발생. 새로운 PTDF-weighted signed LODF 방식 (v_i[k] = Σ PTDF[l,i] × LODF[l,k])으로 대체하여 모든 버스 쌍에서 고유한 거리 보장. 3-bus 및 5-bus 테스트 통과.
+
+✅ 해결됨 (2026-07-11 18:00): `graph_editor.py` Ukraine 섹션 들여쓰기 오류 수정. 16-space → 8-space로 변경.
+
+## 현재 작업 중인 이슈
+
+## 문서 업데이트 필요
+- **TODO.md**: 완료된 작업 표시 업데이트 필요
+- **history.md**: 현재 작업 로그 추가 필요
