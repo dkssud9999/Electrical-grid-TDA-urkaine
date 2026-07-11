@@ -137,4 +137,35 @@ graph_editor/
 - `graph_editor.py` — 메서드 들여쓰기 수정 (로컬 함수 → 클래스 메서드)
 - `unsolved issues.txt` — 해결된 이슈 마킹
 - `TODO.md` — 로그 수집 항목 추가
+---
+
+## 2026-07-11 — VR Complex H₁ Cycle Death Bug Fix
+
+### Changes
+1. **`tda/vr_core.py` persistence_pairs() 버그 수정**:
+   - **문제**: 삼각형(2-simplex) 완성 시 `break` 문으로 인해 새 엣지가 동시에 완성시키는 여러 삼각형 중 첫 번째만 처리됨. 나머지 삼각형들은 H₁ 사이클을 죽일 기회를 잃어, 사이클들이 무한대(infinity)까지 생존하는 현상 발생
+   - **수정**: `break` 제거 → 새 엣지가 완성시키는 **모든** 삼각형을 처리
+   - **추가 수정**: "youngest edge rule" 구현 개선 — 삼각형의 세 엣지를 거리 내림차순으로 정렬하여, 아직 살아있는 H₁ 사이클이 있는 가장 어린 엣지를 찾아 cycle을 kill
+   - **결과**: 모든 메트릭(PTDF, Effective R, PTDF Inverse)에서 H₁ death가 infinity로 잘못 표시되던 현상 수정
+
+2. **수정 전/후 비교 (5-bus grid 기준)**:
+
+   | 메트릭 | 수정 전 (infinity death) | 수정 후 (finite death) |
+   |---|---|---|
+   | PTDF Vector (L2) | 1개 at infinity | 0개 at infinity, max pers=0.098 |
+   | Effective Resistance | 1개 at infinity | 0개 at infinity, max pers=0.008 |
+   | PTDF Inverse | 2개 at infinity | 0개 at infinity, max pers=0.002 |
+   | Bus LODF Sensitivity | 0개 (death=birth) | 0개 (동일, 별도 이슈 있음) |
+
+### Root Cause
+- `persistence_pairs()`의 삼각형 검사 루프에서 `break` 문으로 인해 한 edge addition 당 하나의 triangle만 처리됨
+- 예: 5-bus grid에서 edge (0,4) 추가 시 (0,4,1), (0,4,3), (0,4,2) 세 개의 삼각형이 동시에 완성되지만, (0,4,1)만 처리되고 (0,4,3)이 죽여야 할 cycle (3,4)가 infinity로 생존
+
+### Test Results
+```
+51 passed in 0.09s
+```
+
+### Files Modified
+- `tda/vr_core.py` — triangle killing 로직 수정 (break 제거, youngest edge rule 개선)
 

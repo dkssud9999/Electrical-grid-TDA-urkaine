@@ -79,7 +79,7 @@ class TestPersistencePairs:
         assert len(h1) == 1
         b, d = h1[0]
         assert b == pytest.approx(1.0)
-        assert d > 1.0
+        assert d >= 1.0  # death >= birth (zero persistence for equilateral triangle)
 
     def test_square_diagonal(self):
         """Square with diagonals: H1 born at 1.0, dies at max_dist*1.5."""

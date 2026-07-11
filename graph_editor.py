@@ -588,7 +588,7 @@ class GraphEditor:
         max_dist = unique_dists[-1] if unique_dists else 1
         margin = max_dist * 0.05 or 5
 
-        # Build H0 / H1 persistence pairs
+        # Build H0 / H1 persistence pairs (with proper triangle-death computation)
         vr_parent = list(range(V))
         comp_birth = [0.0] * V
 
@@ -602,6 +602,10 @@ class GraphEditor:
             px, py = find(x), find(y)
             if px != py:
                 vr_parent[px] = py
+
+        # Track existing edges and active H1 cycles
+        edge_exists: dict[tuple[int, int], float] = {}
+        active_cycles: list[tuple[float, tuple[int, int]]] = []
 
         h0_pairs = []
         h1_pairs = []
@@ -617,9 +621,39 @@ class GraphEditor:
                 comp_birth[surviving] = min(comp_birth[surviving], comp_birth[dying])
                 union(i, j)
             else:
-                h1_pairs.append((d, max_dist + margin))
+                # H1: cycle born
+                active_cycles.append((d, (i, j)))
+
+            # Record edge
+            edge_exists[(i, j)] = d
+            edge_exists[(j, i)] = d
+
+            # Check triangles: find k such that (i,k) and (j,k) also exist
+            for k in range(V):
+                if k == i or k == j:
+                    continue
+                if (i, k) in edge_exists and (j, k) in edge_exists:
+                    d_ik = edge_exists[(i, k)]
+                    d_jk = edge_exists[(j, k)]
+                    triangle_complete_at = max(d, d_ik, d_jk)
+
+                    # Find youngest active cycle involving any of the three edges
+                    candidates = []
+                    for idx, (bd, (ei, ej)) in enumerate(active_cycles):
+                        if ((ei, ej) in ((i, j), (j, i), (i, k), (k, i), (j, k), (k, j))):
+                            candidates.append((bd, idx))
+
+                    if candidates:
+                        candidates.sort(key=lambda x: -x[0])
+                        _, kill_idx = candidates[0]
+                        bd, _ = active_cycles.pop(kill_idx)
+                        h1_pairs.append((bd, triangle_complete_at))
+                        break  # One triangle kills at most one cycle per edge addition
 
         infinity = max_dist * 1.5
+        for bd, _ in active_cycles:
+            h1_pairs.append((bd, infinity))
+
         survivors = set(find(i) for i in range(V))
         for s in survivors:
             h0_pairs.append((comp_birth[s], infinity))

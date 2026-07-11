@@ -83,6 +83,12 @@ class VRComplex:
         """
         H₀ and H₁ persistence via union-find over increasing distance.
 
+        Computes H₁ deaths properly by tracking when triangles (2-simplices)
+        are completed in the Vietoris-Rips complex. A triangle [i,j,k] is
+        present at distance α when all three edges have distance ≤ α.
+        When a triangle is completed, it kills the H₁ cycle created by the
+        most recently added edge among its three edges.
+
         Returns
         -------
         h0_pairs : list of (birth, death)
@@ -97,11 +103,18 @@ class VRComplex:
         comp_birth = [0.0] * self.n
         h0, h1 = [], []
 
+        # Track existing edges for triangle detection
+        edge_exists: dict[tuple[int, int], float] = {}
+
+        # Track active H₁ cycles: list of (birth_distance, edge_tuple)
+        active_cycles: list[tuple[float, tuple[int, int]]] = []
+
         for d, i, j in self._sorted_pairs:
             pi = self._uf_find(parent, i)
             pj = self._uf_find(parent, j)
+
             if pi != pj:
-                # Merge: older component survives
+                # ── H₀: components merge ──
                 if comp_birth[pi] <= comp_birth[pj]:
                     dying, surviving = pj, pi
                 else:
@@ -110,7 +123,46 @@ class VRComplex:
                 comp_birth[surviving] = min(comp_birth[surviving], comp_birth[dying])
                 self._uf_union(parent, i, j)
             else:
-                h1.append((d, infinity))
+                # ── H₁: cycle born ──
+                active_cycles.append((d, (i, j)))
+
+            # Record edge
+            edge_exists[(i, j)] = d
+            edge_exists[(j, i)] = d
+
+            # ── Check triangles: find k such that (i,k) and (j,k) also exist ──
+            for k in range(self.n):
+                if k == i or k == j:
+                    continue
+                if (i, k) in edge_exists and (j, k) in edge_exists:
+                    d_ik = edge_exists[(i, k)]
+                    d_jk = edge_exists[(j, k)]
+
+                    # The triangle is completed when the last edge is added:
+                    triangle_complete_at = max(d, d_ik, d_jk)
+
+                    # The three edges of this triangle, sorted by distance
+                    # descending (youngest / most recently added edge first)
+                    tri_edges = [(d, i, j), (d_ik, i, k), (d_jk, j, k)]
+                    tri_edges.sort(key=lambda x: -x[0])
+
+                    # Find the youngest edge that still has an active H₁ cycle.
+                    # This implements the standard "youngest edge rule" for
+                    # Vietoris-Rips persistence.
+                    killed = False
+                    for _, ei, ej in tri_edges:
+                        for ci, (bd, (cei, cej)) in enumerate(active_cycles):
+                            if (ei, ej) == (cei, cej) or (ei, ej) == (cej, cei):
+                                h1.append((bd, triangle_complete_at))
+                                active_cycles.pop(ci)
+                                killed = True
+                                break
+                        if killed:
+                            break
+
+        # Remaining active cycles survive to infinity
+        for bd, _ in active_cycles:
+            h1.append((bd, infinity))
 
         survivors = set(self._uf_find(parent, i) for i in range(self.n))
         for s in survivors:

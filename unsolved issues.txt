@@ -1,1 +1,5 @@
 ✅ 해결됨 (2026-07-11): _vulnerability_analysis 및 관련 메서드들이 _on_undo 내부에 로컬 함수로 잘못 정의되어 있었음. GraphEditor 클래스의 실제 메서드로 승격 완료.
+
+✅ 해결됨 (2026-07-11): VR Complex H1 사이클 death가 infinity로 잘못 표시되던 버그 수정. persistence_pairs()의 triangle killing 루프에서 break 제거 및 youngest edge rule 개선.
+
+⚠ 해결되지 않음: Bus LODF Sensitivity 메트릭이 5-bus grid에서 D[0,4]=0을 반환 (서로 다른 버스 간 거리 0). 이는 metric property를 위반하며, TDA 분석 결과의 신뢰성을 떨어뜨림. 원인: compute_bus_lodf_sensitivity()에서 버스 0과 4의 평균 LODF 벡터가 동일하게 계산됨. (해당 버스들의 incident line set이 우연히 동일한 평균을 생성)
