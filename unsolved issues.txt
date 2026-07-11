@@ -1,4 +1,10 @@
 ## 해결된 이슈
+✅ 해결됨 (2026-07-11 22:30): **Bus LODF Sensitivity NaN 전파 버그 수정**
+   - 원인: `compute_lodf()`에서 bridge/leaf 라인 (분모=0)에 대해 `np.nan`을 설정하여 전체 거리 행렬이 NaN이 됨
+   - 수정: bridge 라인 LODF를 `np.nan` 대신 `0.0`으로 설정 (표준 근사법)
+   - 영향: 우크라이나 18-bus, 28-bus 그리드 모두 정상 작동 확인
+   - 신규 테스트 2개 추가 (53개 모두 통과)
+
 ✅ 해결됨 (2026-07-11): _vulnerability_analysis 및 관련 메서드들이 _on_undo 내부에 로컬 함수로 잘못 정의되어 있었음. GraphEditor 클래스의 실제 메서드로 승격 완료.
 
 ✅ 해결됨 (2026-07-11): VR Complex H1 사이클 death가 infinity로 잘못 표시되던 버그 수정. persistence_pairs()의 triangle killing 루프에서 break 제거 및 youngest edge rule 개선.

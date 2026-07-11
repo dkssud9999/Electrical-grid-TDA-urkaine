@@ -173,6 +173,19 @@ def compute_lodf(
         den = 1 - PTDF[k, :] · Δ_k
         LODF_{l, k} = num / den
 
+    Bridge / leaf-line handling
+    ---------------------------
+    When a line is the only connection between a bus and the rest of
+    the grid (e.g. a radial line), its outage causes islanding and the
+    denominator becomes zero.  In this case LODF is not defined by the
+    standard formula, but for practical computation we set:
+
+        LODF[l, k] = 0  for l ≠ k
+
+    which means "the outage of this bridge line does not affect flow
+    on other lines in the remaining connected grid".  This is a
+    standard approximation in contingency analysis for radial lines.
+
     Parameters
     ----------
     PTDF : np.ndarray, shape (n_line, n_bus)
@@ -199,8 +212,9 @@ def compute_lodf(
         denom = 1.0 - (PTDF[k, f_k] - PTDF[k, t_k])
 
         if abs(denom) < 1e-12:
-            # Line k's outage causes singularity / islanding
-            LODF[:, k] = np.nan
+            # Bridge / leaf line: outage causes islanding.
+            # Standard LODF is undefined; set to 0 (no effect on other lines).
+            LODF[:, k] = 0.0
         else:
             LODF[:, k] = delta_k / denom
 

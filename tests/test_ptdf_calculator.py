@@ -2,6 +2,7 @@
 
 import sys
 import os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
@@ -197,3 +198,43 @@ class TestEdgeCases:
         # L1 norm should be >= L2 norm for same vectors
         assert np.all(D_l1 >= D_l2 - 1e-10), "L1 norm should be >= L2 norm"
 
+    def test_lodf_bridge_line_no_nan(self):
+        """Bridge/leaf lines should not produce NaN in LODF.
+
+        A leaf line (connecting a degree-1 bus) has a zero denominator
+        in the LODF formula because its outage would island that bus.
+        The fix sets such entries to 0 instead of NaN.
+        """
+        pairs = [(0, 1), (0, 2), (0, 3)]
+        susc = [10.0, 10.0, 10.0]
+        PTDF = compute_ptdf(4, pairs, susc, slack_bus=0)
+        LODF = compute_lodf(PTDF, pairs)
+
+        # All three lines are leaf lines (buses 1,2,3 are degree-1)
+        assert not np.any(np.isnan(LODF)), "LODF should not contain NaN"
+        assert not np.any(np.isinf(LODF)), "LODF should not contain Inf"
+
+        # Off-diagonal entries for bridge lines should be 0
+        for k in range(3):
+            col = np.delete(LODF[:, k], k)
+            assert np.all(np.abs(col) < 1e-12), (
+                f"Bridge line {k} LODF off-diagonal should be ~0, got {col}"
+            )
+
+        # Diagonal should be -1
+        np.testing.assert_array_almost_equal(np.diag(LODF), np.full(3, -1.0))
+
+    def test_bus_lodf_sensitivity_no_nan_with_bridge(self):
+        """Bus LODF sensitivity should produce valid distances even with bridge lines."""
+        pairs = [(0, 1), (0, 2), (0, 3)]
+        susc = [10.0, 10.0, 10.0]
+        PTDF = compute_ptdf(4, pairs, susc, slack_bus=0)
+        LODF = compute_lodf(PTDF, pairs)
+        D = compute_bus_lodf_sensitivity(PTDF, LODF, pairs)
+
+        assert D.shape == (4, 4)
+        assert not np.any(np.isnan(D)), "Distance matrix should not contain NaN"
+        assert not np.any(np.isinf(D)), "Distance matrix should not contain Inf"
+        np.testing.assert_array_almost_equal(D, D.T, err_msg="Distance matrix must be symmetric")
+        np.testing.assert_array_almost_equal(np.diag(D), np.zeros(4),
+                                              err_msg="Diagonal must be zero")

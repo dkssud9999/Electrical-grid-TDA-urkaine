@@ -1,3 +1,38 @@
+## 2026-07-11 22:30 — Bus LODF Sensitivity NaN Fix: Bridge/Leaf Line LODF 처리
+
+### Problem
+**Bus LODF Sensitivity 메트릭이 우크라이나 전력망에서 완전히 작동하지 않는 치명적 버그 발견.**
+
+원인: `compute_lodf()`에서 leaf/bridge 라인 (예: Dnipro-Kharkiv 연결)의 LODF 분모가 0이 되어 `np.nan`으로 설정됨.
+NaN이 `compute_bus_lodf_sensitivity()`의 벡터 연산을 통해 전체 거리 행렬로 전파되어 모든 값이 NaN이 됨.
+
+구체적 수치:
+- PTDF[24, 16] = 0, PTDF[24, 17] = -1 (Dnipro-Kharkiv line)
+- denom = 1 - (0 - (-1)) = 0 → LODF 전체 NaN
+- 결과: 18×18 거리 행렬이 대각선을 제외한 모든 항목이 NaN
+
+### Fix
+1. **`compute_lodf()` 수정** (`electrical_distance/ptdf_calculator.py`):
+   - 분모가 0인 bridge 라인에 대해 `np.nan` 대신 `0.0` 설정
+   - 해석: "bridge 라인의 고장은 나머지 그리드의 다른 라인에 영향을 주지 않는다"
+   - 대각선은 계속 -1.0 유지 (라인은 자기 자신을 모니터링할 수 없음)
+   - 이는 방사상 라인의 contingency analysis에서 표준 근사법
+
+2. **테스트 추가** (`tests/test_ptdf_calculator.py`):
+   - `test_lodf_bridge_line_no_nan`: 4-bus star topology에서 bridge 라인 LODF 검증
+   - `test_bus_lodf_sensitivity_no_nan_with_bridge`: Bus LODF Sensitivity가 bridge 라인이 있어도 정상 작동 확인
+
+### Test Results
+```
+53 passed in 0.09s
+```
+- 51 기존 테스트 + 2 신규 테스트 모두 통과
+- 18-bus, 28-bus 우크라이나 그리드 모두 NaN/Inf 없이 정상 작동 확인
+
+### Resolved Issues
+- ✅ LODF NaN 전파 버그 수정 — Bus LODF Sensitivity 메트릭이 실제 그리드에서 작동 가능해짐
+
+---
 # Project History
 
 ## 2026-07-11 22:00 — Major Refactoring: 모듈 분할 완료 (graph_editor.py ~800줄 감축)
