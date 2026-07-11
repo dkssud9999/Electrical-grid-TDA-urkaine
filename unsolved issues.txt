@@ -1,13 +1,1 @@
-Traceback (most recent call last):
-  File "/home/yoon/graph_editor/graph_editor.py", line 1583, in <module>
-    main()
-    ^^^^^^
-  File "/home/yoon/graph_editor/graph_editor.py", line 1578, in main
-    app = GraphEditor(root)
-  File "/home/yoon/graph_editor/graph_editor.py", line 276, in __init__
-    self._build_ui()
-    ^^^^^^^^^^^^^^^^
-  File "/home/yoon/graph_editor/graph_editor.py", line 307, in _build_ui
-    ttk.Button(toolbar, text="⚠ 취약점 분석", command=self._vulnerability_analysis).pack(
-                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AttributeError: 'GraphEditor' object has no attribute '_vulnerability_analysis'
+✅ 해결됨 (2026-07-11): _vulnerability_analysis 및 관련 메서드들이 _on_undo 내부에 로컬 함수로 잘못 정의되어 있었음. GraphEditor 클래스의 실제 메서드로 승격 완료.

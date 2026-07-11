@@ -111,3 +111,30 @@ graph_editor/
 - 연구팀 회의 결과 반영 (거리 함수 정의 확정)
 - `pytest` 설치 후 테스트 실행 확인
 
+---
+
+## 2026-07-11 14:30 — Critical Bug Fix: _vulnerability_analysis 메서드 승격
+
+### Changes
+1. **`graph_editor.py` 클래스 메서드 승격**:
+   - `_on_undo` 메서드 내부에 로컬 함수(`def`)로 잘못 정의되어 있던 7개 메서드들을 `GraphEditor` 클래스의 실제 메서드로 승격 (8-space → 4-space indent)
+   - 영향받은 메서드: `_vulnerability_analysis`, `_build_euclidean_distance_matrix`, `_build_electrical_distance_matrix`, `_color_nodes_by_score`, `_reset_node_colors`, `_show_vulnerability_window`, `_show_vulnerability_pd`
+   - 이로 인해 `"⚠ 취약점 분석"` 버튼 클릭 시 발생하던 `AttributeError: 'GraphEditor' object has no attribute '_vulnerability_analysis'` 버그 수정
+
+2. **`unsolved issues.txt` 업데이트**: 해결된 이슈를 기록으로 변경
+
+3. **`TODO.md` 업데이트**: 로그 파일 수집 항목을 향후 계획에 추가
+
+### Root Cause
+`_on_undo` 메서드(Ctrl+Z) 내부에서 `# ── Vulnerability Analysis ─────────────────────────────────────` 주석 아래의 모든 취약점 분석 관련 메서드들이 로컬 함수로 정의됨. `self`를 인자로 받는 로컬 함수는 Python에서 유효하지만 클래스 메서드가 아니므로 `self._vulnerability_analysis`로 접근 불가능.
+
+### Test Results
+```
+51 passed in 0.23s
+```
+
+### Files Modified
+- `graph_editor.py` — 메서드 들여쓰기 수정 (로컬 함수 → 클래스 메서드)
+- `unsolved issues.txt` — 해결된 이슈 마킹
+- `TODO.md` — 로그 수집 항목 추가
+

@@ -1207,312 +1207,312 @@ class GraphEditor:
             node = self.nodes[-1]
             self.remove_node(node)
 
-        # ── Vulnerability Analysis ─────────────────────────────────────
-    
-        def _vulnerability_analysis(self):
-            """Open vulnerability analysis window using persistence homology.
-    
-            Builds distance matrix (electrical if grid data available, else
-            Euclidean from node positions), computes VR complex, derives
-            vulnerability scores, color-codes nodes on the canvas, and
-            displays a ranked result window.
-            """
-            if len(self.nodes) < 2:
-                messagebox.showwarning(
-                    "경고", "취약점 분석을 위해 최소 2개 이상의 노드가 필요합니다."
-                )
-                return
-    
-            # ── 1. Build distance matrix ────────────────────────────────
-            bus_labels = [n.label or f"Node{i}" for i, n in enumerate(self.nodes)]
-    
-            if self._grid_converter is not None and self._power_grid_data is not None:
-                dist_matrix = self._build_electrical_distance_matrix()
-                if dist_matrix is None:
-                    return
-                buses = self._power_grid_data.get("buses", [])
-                if len(buses) == len(self.nodes):
-                    bus_labels = [
-                        b.get("name") or f"Bus{b['id']}" for b in buses
-                    ]
-            else:
-                dist_matrix = self._build_euclidean_distance_matrix()
-    
+    # ─── Vulnerability Analysis ──────────────────────────────────
+
+    def _vulnerability_analysis(self):
+        """Open vulnerability analysis window using persistence homology.
+
+        Builds distance matrix (electrical if grid data available, else
+        Euclidean from node positions), computes VR complex, derives
+        vulnerability scores, color-codes nodes on the canvas, and
+        displays a ranked result window.
+        """
+        if len(self.nodes) < 2:
+            messagebox.showwarning(
+                "경고", "취약점 분석을 위해 최소 2개 이상의 노드가 필요합니다."
+            )
+            return
+
+        # ── 1. Build distance matrix ────────────────────────────────
+        bus_labels = [n.label or f"Node{i}" for i, n in enumerate(self.nodes)]
+
+        if self._grid_converter is not None and self._power_grid_data is not None:
+            dist_matrix = self._build_electrical_distance_matrix()
             if dist_matrix is None:
                 return
-    
-            # ── 2. Compute VR complex ──────────────────────────────────
-            try:
-                vr = VRComplex(dist_matrix)
-            except Exception as e:
-                messagebox.showerror("오류", f"VR 복합체 계산 중 오류: {e}")
-                return
-    
-            # ── 3. Compute vulnerability scores ─────────────────────────
-            try:
-                scores = compute_vulnerability_scores(dist_matrix, vr)
-                summary = compute_vulnerability_summary(
-                    dist_matrix, vr, bus_labels, top_k=10
-                )
-            except Exception as e:
-                messagebox.showerror("오류", f"취약점 점수 계산 중 오류: {e}")
-                return
-    
-            # ── 4. Color nodes on canvas ────────────────────────────────
-            self._color_nodes_by_score(scores)
-    
-            # ── 5. Show results window ─────────────────────────────────
-            self._show_vulnerability_window(scores, summary, vr, dist_matrix, bus_labels)
-    
-        def _build_euclidean_distance_matrix(self):
-            """Build Euclidean distance matrix from node positions."""
-            n = len(self.nodes)
-            if n < 2:
-                return None
-            D = np.zeros((n, n))
-            for i in range(n):
-                for j in range(i + 1, n):
-                    dx = self.nodes[i].x - self.nodes[j].x
-                    dy = self.nodes[i].y - self.nodes[j].y
-                    d = np.sqrt(dx * dx + dy * dy)
-                    D[i, j] = d
-                    D[j, i] = d
-            return D
-    
-        def _build_electrical_distance_matrix(self):
-            """Build electrical distance matrix from grid data (PTDF-based)."""
-            try:
-                data = self._grid_converter.get_electrical_data()
-                n = data["n_bus"]
-                bus_pairs = data["bus_pairs"]
-                susceptances = data["susceptances"]
-                slack = 0
-    
-                from electrical_distance.ptdf_calculator import (
-                    compute_ptdf, compute_ptdf_vector_distance,
-                )
-                PTDF = compute_ptdf(n, bus_pairs, susceptances, slack)
-                return compute_ptdf_vector_distance(PTDF)
-            except Exception as e:
-                messagebox.showwarning(
-                    "전기거리 실패",
-                    f"전기거리 계산 실패 ({e}), 좌표 거리로 대체합니다.",
-                )
-                return self._build_euclidean_distance_matrix()
-    
-        def _color_nodes_by_score(self, scores: np.ndarray):
-            """Color nodes on canvas: red (vulnerable) → yellow → green (safe)."""
-            s_min, s_max = scores.min(), scores.max()
-            if s_max > s_min:
-                norm = (scores - s_min) / (s_max - s_min)
+            buses = self._power_grid_data.get("buses", [])
+            if len(buses) == len(self.nodes):
+                bus_labels = [
+                    b.get("name") or f"Bus{b['id']}" for b in buses
+                ]
+        else:
+            dist_matrix = self._build_euclidean_distance_matrix()
+
+        if dist_matrix is None:
+            return
+
+        # ── 2. Compute VR complex ──────────────────────────────────
+        try:
+            vr = VRComplex(dist_matrix)
+        except Exception as e:
+            messagebox.showerror("오류", f"VR 복합체 계산 중 오류: {e}")
+            return
+
+        # ── 3. Compute vulnerability scores ─────────────────────────
+        try:
+            scores = compute_vulnerability_scores(dist_matrix, vr)
+            summary = compute_vulnerability_summary(
+                dist_matrix, vr, bus_labels, top_k=10
+            )
+        except Exception as e:
+            messagebox.showerror("오류", f"취약점 점수 계산 중 오류: {e}")
+            return
+
+        # ── 4. Color nodes on canvas ────────────────────────────────
+        self._color_nodes_by_score(scores)
+
+        # ── 5. Show results window ─────────────────────────────────
+        self._show_vulnerability_window(scores, summary, vr, dist_matrix, bus_labels)
+
+    def _build_euclidean_distance_matrix(self):
+        """Build Euclidean distance matrix from node positions."""
+        n = len(self.nodes)
+        if n < 2:
+            return None
+        D = np.zeros((n, n))
+        for i in range(n):
+            for j in range(i + 1, n):
+                dx = self.nodes[i].x - self.nodes[j].x
+                dy = self.nodes[i].y - self.nodes[j].y
+                d = np.sqrt(dx * dx + dy * dy)
+                D[i, j] = d
+                D[j, i] = d
+        return D
+
+    def _build_electrical_distance_matrix(self):
+        """Build electrical distance matrix from grid data (PTDF-based)."""
+        try:
+            data = self._grid_converter.get_electrical_data()
+            n = data["n_bus"]
+            bus_pairs = data["bus_pairs"]
+            susceptances = data["susceptances"]
+            slack = 0
+
+            from electrical_distance.ptdf_calculator import (
+                compute_ptdf, compute_ptdf_vector_distance,
+            )
+            PTDF = compute_ptdf(n, bus_pairs, susceptances, slack)
+            return compute_ptdf_vector_distance(PTDF)
+        except Exception as e:
+            messagebox.showwarning(
+                "전기거리 실패",
+                f"전기거리 계산 실패 ({e}), 좌표 거리로 대체합니다.",
+            )
+            return self._build_euclidean_distance_matrix()
+
+    def _color_nodes_by_score(self, scores: np.ndarray):
+        """Color nodes on canvas: red (vulnerable) → yellow → green (safe)."""
+        s_min, s_max = scores.min(), scores.max()
+        if s_max > s_min:
+            norm = (scores - s_min) / (s_max - s_min)
+        else:
+            norm = np.zeros_like(scores)
+
+        for i, node in enumerate(self.nodes):
+            if i < len(norm):
+                t = norm[i]
+                r = int(255 * t)
+                g = int(255 * (1 - t))
+                b = 0
+                color = f"#{r:02x}{g:02x}{b:02x}"
+                node.set_color(color)
+
+    def _reset_node_colors(self):
+        """Reset all node colors to default (light blue)."""
+        for node in self.nodes:
+            node.set_color("#ADD8E6")
+
+    def _show_vulnerability_window(
+        self,
+        scores: np.ndarray,
+        summary: dict,
+        vr: "VRComplex",
+        dist_matrix: np.ndarray,
+        bus_labels: list[str],
+    ):
+        """Display vulnerability analysis results in a new window."""
+        win = tk.Toplevel(self.root)
+        win.title("⚠ 취약점 분석 결과")
+        win.geometry("750x650")
+        win.configure(bg="#1E1E2E")
+
+        # ── Title ──────────────────────────────────────────────────
+        title_frame = tk.Frame(win, bg="#1E1E2E")
+        title_frame.pack(fill=tk.X, padx=10, pady=(10, 5))
+
+        grid_name = "수동 그래프"
+        if self._power_grid_data:
+            grid_name = self._power_grid_data.get("name", "전력망")
+        tk.Label(
+            title_frame,
+            text=f"⚠ 취약점 분석: {grid_name}",
+            font=("Helvetica", 16, "bold"),
+            bg="#1E1E2E", fg="#FFFFFF",
+        ).pack(anchor=tk.W)
+
+        # ── Summary stats ──────────────────────────────────────────
+        stats_frame = tk.Frame(win, bg="#1E1E2E")
+        stats_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        b0 = summary.get("overall_beta0", 0)
+        b1 = summary.get("overall_beta1", 0)
+        n_buses = summary.get("n_buses", 0)
+        n_high = summary.get("n_vulnerable_high", 0)
+        n_medium = summary.get("n_vulnerable_medium", 0)
+
+        stats_text = (
+            f"총 버스: {n_buses}개  |  "
+            f"β₀ = {b0}  |  "
+            f"β₁ = {b1}  |  "
+            f"취약(높음): {n_high}개  |  "
+            f"취약(중간): {n_medium}개"
+        )
+        tk.Label(
+            stats_frame,
+            text=stats_text,
+            font=("Consolas", 11),
+            bg="#1E1E2E", fg="#CDD6F4",
+        ).pack(anchor=tk.W)
+
+        # ── Legend ─────────────────────────────────────────────────
+        legend_frame = tk.Frame(win, bg="#1E1E2E")
+        legend_frame.pack(fill=tk.X, padx=10, pady=2)
+
+        for color, label in [
+            ("#FF0000", "취약 (높음)"),
+            ("#FFAA00", "취약 (중간)"),
+            ("#00CC00", "안전"),
+        ]:
+            f = tk.Frame(legend_frame, bg="#1E1E2E")
+            f.pack(side=tk.LEFT, padx=(0, 15))
+            c = tk.Canvas(f, width=16, height=16, bg="#1E1E2E",
+                          highlightthickness=0)
+            c.create_rectangle(2, 2, 14, 14, fill=color, outline="#888888")
+            c.pack(side=tk.LEFT)
+            tk.Label(f, text=label, font=("Helvetica", 9),
+                     bg="#1E1E2E", fg="#CDD6F4").pack(side=tk.LEFT, padx=3)
+
+        # ── Ranked table ───────────────────────────────────────────
+        table_frame = tk.Frame(win, bg="#1E1E2E")
+        table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        list_frame = tk.Frame(table_frame, bg="#1E1E2E")
+        list_frame.pack(fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(list_frame, orient=tk.VERTICAL)
+        listbox = tk.Listbox(
+            list_frame,
+            yscrollcommand=scrollbar.set,
+            font=("Consolas", 10),
+            bg="#2A2A3E", fg="#FFFFFF",
+            selectbackground="#4A4A6E",
+            relief=tk.FLAT, borderwidth=0,
+            height=15,
+        )
+        scrollbar.config(command=listbox.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Header
+        listbox.insert(tk.END, f"{'순위':>4}  {'버스':<20}  {'점수':>6}  {'상태'}")
+        listbox.insert(tk.END, "─" * 55)
+        listbox.itemconfig(tk.END, fg="#888888")
+
+        ranked = summary.get("ranked", [])
+        for rank, (idx, score, label) in enumerate(ranked, 1):
+            if score > 0.7:
+                status = "⚠ 위험"
+            elif score > 0.4:
+                status = "⚡ 주의"
             else:
-                norm = np.zeros_like(scores)
-    
-            for i, node in enumerate(self.nodes):
-                if i < len(norm):
-                    t = norm[i]
-                    r = int(255 * t)
-                    g = int(255 * (1 - t))
-                    b = 0
-                    color = f"#{r:02x}{g:02x}{b:02x}"
-                    node.set_color(color)
-    
-        def _reset_node_colors(self):
-            """Reset all node colors to default (light blue)."""
-            for node in self.nodes:
-                node.set_color("#ADD8E6")
-    
-        def _show_vulnerability_window(
-            self,
-            scores: np.ndarray,
-            summary: dict,
-            vr: "VRComplex",
-            dist_matrix: np.ndarray,
-            bus_labels: list[str],
-        ):
-            """Display vulnerability analysis results in a new window."""
-            win = tk.Toplevel(self.root)
-            win.title("⚠ 취약점 분석 결과")
-            win.geometry("750x650")
-            win.configure(bg="#1E1E2E")
-    
-            # ── Title ──────────────────────────────────────────────────
-            title_frame = tk.Frame(win, bg="#1E1E2E")
-            title_frame.pack(fill=tk.X, padx=10, pady=(10, 5))
-    
-            grid_name = "수동 그래프"
-            if self._power_grid_data:
-                grid_name = self._power_grid_data.get("name", "전력망")
-            tk.Label(
-                title_frame,
-                text=f"⚠ 취약점 분석: {grid_name}",
-                font=("Helvetica", 16, "bold"),
-                bg="#1E1E2E", fg="#FFFFFF",
-            ).pack(anchor=tk.W)
-    
-            # ── Summary stats ──────────────────────────────────────────
-            stats_frame = tk.Frame(win, bg="#1E1E2E")
-            stats_frame.pack(fill=tk.X, padx=10, pady=5)
-    
-            b0 = summary.get("overall_beta0", 0)
-            b1 = summary.get("overall_beta1", 0)
-            n_buses = summary.get("n_buses", 0)
-            n_high = summary.get("n_vulnerable_high", 0)
-            n_medium = summary.get("n_vulnerable_medium", 0)
-    
-            stats_text = (
-                f"총 버스: {n_buses}개  |  "
-                f"β₀ = {b0}  |  "
-                f"β₁ = {b1}  |  "
-                f"취약(높음): {n_high}개  |  "
-                f"취약(중간): {n_medium}개"
-            )
-            tk.Label(
-                stats_frame,
-                text=stats_text,
-                font=("Consolas", 11),
-                bg="#1E1E2E", fg="#CDD6F4",
-            ).pack(anchor=tk.W)
-    
-            # ── Legend ─────────────────────────────────────────────────
-            legend_frame = tk.Frame(win, bg="#1E1E2E")
-            legend_frame.pack(fill=tk.X, padx=10, pady=2)
-    
-            for color, label in [
-                ("#FF0000", "취약 (높음)"),
-                ("#FFAA00", "취약 (중간)"),
-                ("#00CC00", "안전"),
-            ]:
-                f = tk.Frame(legend_frame, bg="#1E1E2E")
-                f.pack(side=tk.LEFT, padx=(0, 15))
-                c = tk.Canvas(f, width=16, height=16, bg="#1E1E2E",
-                              highlightthickness=0)
-                c.create_rectangle(2, 2, 14, 14, fill=color, outline="#888888")
-                c.pack(side=tk.LEFT)
-                tk.Label(f, text=label, font=("Helvetica", 9),
-                         bg="#1E1E2E", fg="#CDD6F4").pack(side=tk.LEFT, padx=3)
-    
-            # ── Ranked table ───────────────────────────────────────────
-            table_frame = tk.Frame(win, bg="#1E1E2E")
-            table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-    
-            list_frame = tk.Frame(table_frame, bg="#1E1E2E")
-            list_frame.pack(fill=tk.BOTH, expand=True)
-    
-            scrollbar = tk.Scrollbar(list_frame, orient=tk.VERTICAL)
-            listbox = tk.Listbox(
-                list_frame,
-                yscrollcommand=scrollbar.set,
-                font=("Consolas", 10),
-                bg="#2A2A3E", fg="#FFFFFF",
-                selectbackground="#4A4A6E",
-                relief=tk.FLAT, borderwidth=0,
-                height=15,
-            )
-            scrollbar.config(command=listbox.yview)
-            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-            listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    
-            # Header
-            listbox.insert(tk.END, f"{'순위':>4}  {'버스':<20}  {'점수':>6}  {'상태'}")
-            listbox.insert(tk.END, "─" * 55)
-            listbox.itemconfig(tk.END, fg="#888888")
-    
-            ranked = summary.get("ranked", [])
-            for rank, (idx, score, label) in enumerate(ranked, 1):
-                if score > 0.7:
-                    status = "⚠ 위험"
-                elif score > 0.4:
-                    status = "⚡ 주의"
-                else:
-                    status = "✓ 안전"
-                text = f"{rank:>4}  {label:<20}  {score:>6.3f}  {status}"
-                listbox.insert(tk.END, text)
-                if score > 0.7:
-                    listbox.itemconfig(tk.END, fg="#FF6B6B")
-                elif score > 0.4:
-                    listbox.itemconfig(tk.END, fg="#FFD93D")
-                else:
-                    listbox.itemconfig(tk.END, fg="#6BCB77")
-    
-            # ── Bottom buttons ─────────────────────────────────────────
-            btn_frame = tk.Frame(win, bg="#1E1E2E")
-            btn_frame.pack(fill=tk.X, padx=10, pady=(5, 10))
-    
-            def reset_colors():
-                self._reset_node_colors()
-    
-            def show_pd():
-                self._show_vulnerability_pd(scores, summary, vr, dist_matrix, bus_labels)
-    
-            tk.Button(
-                btn_frame, text="🔄 색상 초기화", command=reset_colors,
-                bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
-            ).pack(side=tk.LEFT, padx=(0, 5))
-    
-            tk.Button(
-                btn_frame, text="📊 지속성 다이어그램", command=show_pd,
-                bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
-            ).pack(side=tk.LEFT, padx=5)
-    
-            tk.Button(
-                btn_frame, text="닫기", command=win.destroy,
-                bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
-            ).pack(side=tk.RIGHT)
-    
-            # ── Tooltip ────────────────────────────────────────────────
-            info_frame = tk.Frame(win, bg="#1E1E2E")
-            info_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-    
-            tk.Label(
-                info_frame,
-                text="💡 취약점 점수는 지속성 호몰로지 기반: "
-                     "고립도(Isolation) + 병합 중요도(Component Merge) - 사이클 완화(Cycle)\n"
-                     "빨간색일수록 취약, 녹색일수록 안전합니다.",
-                font=("Helvetica", 9),
-                bg="#1E1E2E", fg="#A0A0B0", justify=tk.LEFT,
-            ).pack(anchor=tk.W)
-    
-        def _show_vulnerability_pd(
-            self,
-            scores: np.ndarray,
-            summary: dict,
-            vr: "VRComplex",
-            dist_matrix: np.ndarray,
-            bus_labels: list[str],
-        ):
-            """Show persistence diagram with vulnerability overlay."""
-            pd_win = tk.Toplevel(self.root)
-            pd_win.title("취약점 지속성 다이어그램")
-            pd_win.geometry("600x650")
-            pd_win.configure(bg="#1E1E2E")
-    
-            h0_pairs, h1_pairs = vr.persistence_pairs()
-            max_dist = float(vr.max_distance)
-    
-            canvas = tk.Canvas(
-                pd_win, bg="#1E1E2E", highlightthickness=0,
-                width=550, height=550,
-            )
-            canvas.pack(padx=10, pady=10)
-    
-            _draw_pd(canvas, h0_pairs, h1_pairs, max_dist, width=550, height=550)
-    
-            info = tk.Label(
-                pd_win,
-                text=f"β₀ = {summary['overall_beta0']}  |  "
-                     f"β₁ = {summary['overall_beta1']}  |  "
-                     f"취약(높음): {summary['n_vulnerable_high']}  |  "
-                     f"취약(중간): {summary['n_vulnerable_medium']}",
-                font=("Consolas", 11), bg="#1E1E2E", fg="#CDD6F4",
-            )
-            info.pack(pady=(0, 5))
-    
-            tk.Button(
-                pd_win, text="닫기", command=pd_win.destroy,
-                bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
-            ).pack(pady=(0, 10))
-    
+                status = "✓ 안전"
+            text = f"{rank:>4}  {label:<20}  {score:>6.3f}  {status}"
+            listbox.insert(tk.END, text)
+            if score > 0.7:
+                listbox.itemconfig(tk.END, fg="#FF6B6B")
+            elif score > 0.4:
+                listbox.itemconfig(tk.END, fg="#FFD93D")
+            else:
+                listbox.itemconfig(tk.END, fg="#6BCB77")
+
+        # ── Bottom buttons ─────────────────────────────────────────
+        btn_frame = tk.Frame(win, bg="#1E1E2E")
+        btn_frame.pack(fill=tk.X, padx=10, pady=(5, 10))
+
+        def reset_colors():
+            self._reset_node_colors()
+
+        def show_pd():
+            self._show_vulnerability_pd(scores, summary, vr, dist_matrix, bus_labels)
+
+        tk.Button(
+            btn_frame, text="🔄 색상 초기화", command=reset_colors,
+            bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
+        ).pack(side=tk.LEFT, padx=(0, 5))
+
+        tk.Button(
+            btn_frame, text="📊 지속성 다이어그램", command=show_pd,
+            bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
+        ).pack(side=tk.LEFT, padx=5)
+
+        tk.Button(
+            btn_frame, text="닫기", command=win.destroy,
+            bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
+        ).pack(side=tk.RIGHT)
+
+        # ── Tooltip ────────────────────────────────────────────────
+        info_frame = tk.Frame(win, bg="#1E1E2E")
+        info_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        tk.Label(
+            info_frame,
+            text="💡 취약점 점수는 지속성 호몰로지 기반: "
+                 "고립도(Isolation) + 병합 중요도(Component Merge) - 사이클 완화(Cycle)\n"
+                 "빨간색일수록 취약, 녹색일수록 안전합니다.",
+            font=("Helvetica", 9),
+            bg="#1E1E2E", fg="#A0A0B0", justify=tk.LEFT,
+        ).pack(anchor=tk.W)
+
+    def _show_vulnerability_pd(
+        self,
+        scores: np.ndarray,
+        summary: dict,
+        vr: "VRComplex",
+        dist_matrix: np.ndarray,
+        bus_labels: list[str],
+    ):
+        """Show persistence diagram with vulnerability overlay."""
+        pd_win = tk.Toplevel(self.root)
+        pd_win.title("취약점 지속성 다이어그램")
+        pd_win.geometry("600x650")
+        pd_win.configure(bg="#1E1E2E")
+
+        h0_pairs, h1_pairs = vr.persistence_pairs()
+        max_dist = float(vr.max_distance)
+
+        canvas = tk.Canvas(
+            pd_win, bg="#1E1E2E", highlightthickness=0,
+            width=550, height=550,
+        )
+        canvas.pack(padx=10, pady=10)
+
+        _draw_pd(canvas, h0_pairs, h1_pairs, max_dist, width=550, height=550)
+
+        info = tk.Label(
+            pd_win,
+            text=f"β₀ = {summary['overall_beta0']}  |  "
+                 f"β₁ = {summary['overall_beta1']}  |  "
+                 f"취약(높음): {summary['n_vulnerable_high']}  |  "
+                 f"취약(중간): {summary['n_vulnerable_medium']}",
+            font=("Consolas", 11), bg="#1E1E2E", fg="#CDD6F4",
+        )
+        info.pack(pady=(0, 5))
+
+        tk.Button(
+            pd_win, text="닫기", command=pd_win.destroy,
+            bg="#3A3A5E", fg="#FFFFFF", relief=tk.FLAT, padx=10,
+        ).pack(pady=(0, 10))
+
 
 # ─── Module-level helper: draw persistence diagram ─────────────
 
