@@ -315,6 +315,78 @@ class GeodesicElectricalHybrid(ElectricalDistance):
             D_elec = (D_elec - e_min) / (e_max - e_min)
 
         return self.w_geo * D_geo + self.w_elec * D_elec
+class LODFInverseDistance(ElectricalDistance):
+    """Distance based on LODF pseudo-inverse.
+
+    Computes the pseudo-inverse of the LODF matrix (n_line × n_line) and
+    uses it to define a bus-to-bus distance via the incidence matrix:
+
+        v_i = C[:,i]ᵀ · LODF⁺   (size n_line)
+        D[i,j] = ||v_i - v_j||₂
+
+    Interpretation:
+        The LODF matrix captures how line outages redistribute flows.
+        Its pseudo-inverse LODF⁺ maps flow redistribution patterns back
+        to "effective outage space". By projecting bus incidence vectors
+        through LODF⁺, we obtain a distance that measures how differently
+        two buses "experience" the line outage propagation space.
+
+    This is the primary approach described in the methodology:
+        "PTDF행렬을 구해서, LODF를 구하고 그 역수를 기반으로 하는게
+         가장 가능성있는 계획"
+    """
+
+    def __init__(self, slack_bus: int = 0):
+        self.slack_bus = slack_bus
+
+    @property
+    def name(self) -> str:
+        return "LODF Inverse Distance"
+
+    @property
+    def description(self) -> str:
+        return (
+            "Distance based on LODF pseudo-inverse. "
+            "Projects bus incidence vectors through LODF⁺ to measure "
+            "dissimilarity in outage propagation experience."
+        )
+
+    def compute(self, n_bus: int, bus_pairs: list[tuple[int, int]],
+                susceptances: list[float], **kwargs) -> NDArray:
+        from .ptdf_calculator import (
+            build_incidence_matrix,
+        )
+
+        PTDF = compute_ptdf(n_bus, bus_pairs, susceptances, self.slack_bus)
+        LODF = compute_lodf(PTDF, bus_pairs)
+
+        # Pseudo-inverse of LODF
+        LODF_pinv = np.linalg.pinv(LODF)
+
+        # Incidence matrix C: (n_line, n_bus)
+        C = build_incidence_matrix(n_bus, bus_pairs)
+
+        # For each bus i, compute v_i = C[:,i]ᵀ · LODF⁺
+        # C[:,i] is the incidence column for bus i (size n_line)
+        # v_i is size n_line
+        n_line = len(bus_pairs)
+        profiles = np.zeros((n_bus, n_line), dtype=np.float64)
+        for i in range(n_bus):
+            c_i = C[:, i]  # incidence column for bus i
+            profiles[i, :] = c_i @ LODF_pinv
+
+        # Distance: D[i,j] = ||v_i - v_j||₂
+        D = np.zeros((n_bus, n_bus), dtype=np.float64)
+        for i in range(n_bus):
+            for j in range(i + 1, n_bus):
+                diff = profiles[i, :] - profiles[j, :]
+                dist = np.linalg.norm(diff, ord=2)
+                D[i, j] = dist
+                D[j, i] = dist
+
+        return D
+
+
 class KCLCurrentDistance(ElectricalDistance):
     """
     Distance based on KCL (Kirchhoff's Current Law) current vectors.

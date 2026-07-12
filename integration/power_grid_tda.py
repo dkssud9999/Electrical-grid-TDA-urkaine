@@ -22,6 +22,7 @@ from electrical_distance.ptdf_calculator import (
     compute_effective_resistance_matrix,
     compute_ptdf_vector_distance,
     compute_bus_lodf_sensitivity,
+    build_incidence_matrix,
 )
 from tda.vr_core import VRComplex
 from tda.vulnerability import compute_vulnerability_scores, rank_vulnerable_buses, compute_vulnerability_summary
@@ -60,6 +61,16 @@ METRICS = {
         "needs": ["positions"],
         "fn": lambda data: _metric_geographic(data),
     },
+    "LODF Inverse": {
+        "desc": "||C[:,i]ᵀ·LODF⁺ - C[:,j]ᵀ·LODF⁺||₂ — LODF pseudo-inverse distance",
+        "needs": ["bus_pairs", "susceptances"],
+        "fn": lambda data: _metric_lodf_inverse(data),
+    },
+    "KCL Current": {
+        "desc": "||I_i - I_j||₂ — distance based on DC current injection profiles",
+        "needs": ["bus_pairs", "susceptances"],
+        "fn": lambda data: _metric_kcl_current(data),
+    },
 }
 
 
@@ -96,6 +107,40 @@ def _metric_geographic(data: dict) -> np.ndarray:
             D[i, j] = d
             D[j, i] = d
     return D
+
+
+def _metric_lodf_inverse(data: dict) -> np.ndarray:
+    """LODF pseudo-inverse distance: ||C[:,i]ᵀ·LODF⁺ - C[:,j]ᵀ·LODF⁺||₂"""
+    PTDF = compute_ptdf(data["n_bus"], data["bus_pairs"], data["susceptances"])
+    LODF = compute_lodf(PTDF, data["bus_pairs"])
+    LODF_pinv = np.linalg.pinv(LODF)
+    C = build_incidence_matrix(data["n_bus"], data["bus_pairs"])
+
+    n_bus = data["n_bus"]
+    n_line = len(data["bus_pairs"])
+    profiles = np.zeros((n_bus, n_line), dtype=np.float64)
+    for i in range(n_bus):
+        profiles[i, :] = C[:, i] @ LODF_pinv
+
+    D = np.zeros((n_bus, n_bus), dtype=np.float64)
+    for i in range(n_bus):
+        for j in range(i + 1, n_bus):
+            dist = np.linalg.norm(profiles[i] - profiles[j], ord=2)
+            D[i, j] = dist
+            D[j, i] = dist
+    return D
+
+
+def _metric_kcl_current(data: dict) -> np.ndarray:
+    """KCL Current distance: ||I_i - I_j||₂ based on DC current injection profiles.
+
+    For each bus i, computes the current injection vector I_i using the
+    DC power flow approximation: I = B⁻¹ · P_inj where P_inj is a unit
+    injection at bus i (with slack bus as reference).
+    """
+    from electrical_distance.metrics import KCLCurrentDistance
+    metric = KCLCurrentDistance(p_norm=2)
+    return metric.compute(data["n_bus"], data["bus_pairs"], data["susceptances"])
 
 
 # ─── Enhanced TDA Explorer Window ────────────────────────────

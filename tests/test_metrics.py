@@ -158,6 +158,9 @@ class TestKCLCurrentDistance:
         metric = KCLCurrentDistance()
         D = metric.compute(N_BUS, BUS_PAIRS, SUSCEPTANCES)
         assert np.all(D >= 0.0)
+
+
+class TestGeodesicElectricalHybrid:
     """Test GeodesicElectricalHybrid metric."""
 
     def test_compute(self):
@@ -184,4 +187,48 @@ class TestKCLCurrentDistance:
         elec = EffectiveResistanceDistance()
         hybrid = GeodesicElectricalHybrid(positions, elec)
         assert "Geo" in hybrid.name
+
+
+class TestLODFInverseDistance:
+    """Test LODFInverseDistance metric."""
+
+    def test_compute(self):
+        from electrical_distance.metrics import LODFInverseDistance
+        metric = LODFInverseDistance()
+        D = metric.compute(N_BUS, BUS_PAIRS, SUSCEPTANCES)
+        assert D.shape == (3, 3)
+        np.testing.assert_array_almost_equal(D, D.T)
+        np.testing.assert_array_almost_equal(np.diag(D), np.zeros(3))
+
+    def test_all_positive(self):
+        from electrical_distance.metrics import LODFInverseDistance
+        metric = LODFInverseDistance()
+        D = metric.compute(N_BUS, BUS_PAIRS, SUSCEPTANCES)
+        assert np.all(D >= 0.0)
+
+    def test_name(self):
+        from electrical_distance.metrics import LODFInverseDistance
+        metric = LODFInverseDistance()
+        assert "LODF" in metric.name
+        assert "Inverse" in metric.name
+
+    def test_description(self):
+        from electrical_distance.metrics import LODFInverseDistance
+        metric = LODFInverseDistance()
+        assert isinstance(metric.description, str)
+        assert len(metric.description) > 0
+
+    def test_5bus(self):
+        """Test on 5-bus system for consistency."""
+        from electrical_distance.metrics import LODFInverseDistance
+        from power_grid.importer import get_test_grid_5bus
+        grid = get_test_grid_5bus()
+        bus_pairs = [(l["from_bus"], l["to_bus"]) for l in grid["lines"]]
+        susceptances = [1.0 / l["x"] for l in grid["lines"]]
+        n_bus = len(grid["buses"])
+        metric = LODFInverseDistance()
+        D = metric.compute(n_bus, bus_pairs, susceptances)
+        assert D.shape == (n_bus, n_bus)
+        np.testing.assert_array_almost_equal(D, D.T)
+        assert np.all(D >= 0.0)
 

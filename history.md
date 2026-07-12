@@ -1,4 +1,40 @@
-## 2026-07-12 14:30 — Git 복원 + Gap Analysis: 실험 방법론 vs 현재 코드 괴리 분석
+## 2026-07-12 15:30 — P1 구현 완료: LODFInverseDistance + KCLCurrentDistance GUI 통합
+
+### 수행 작업
+1. **LODFInverseDistance 메트릭 구현** (`electrical_distance/metrics.py`)
+   - LODF pseudo-inverse를 통해 버스 간 거리 계산
+   - `v_i = C[:,i]ᵀ · LODF⁺` 프로파일 벡터의 L2 거리 사용
+   - name/description 속성 포함
+
+2. **KCLCurrentDistance GUI 통합** (`integration/power_grid_tda.py`)
+   - METRICS 딕셔너리에 "LODF Inverse" 및 "KCL Current" 등록
+   - `_metric_lodf_inverse()`, `_metric_kcl_current()` 헬퍼 함수 추가
+
+3. **compare_metrics_vulnerability 업데이트** (`tda/vulnerability.py`)
+   - metric_fns에 "LODF Inverse" 및 "KCL Current" 추가
+   - `build_incidence_matrix` import 추가
+   - 들여쓰기 버그 수정 (내부 함수가 `_geo` 본문에 중첩되어 있던 문제)
+
+4. **테스트 추가 및 버그 수정** (`tests/test_metrics.py`)
+   - `TestLODFInverseDistance`: 5개 테스트 (compute, all_positive, name, description, 5bus)
+   - `TestGeodesicElectricalHybrid` 클래스 분리 버그 수정 (class 선언 누락으로 TestKCLCurrentDistance 내부에 중첩)
+   - 총 53 → **59개 테스트**로 증가
+
+### Test Results
+```
+59 passed in 0.11s
+```
+
+### Resolved Issues (from unsolved issues.txt)
+- ✅ LODFInverseDistance 메트릭 구현 (P1)
+- ✅ KCLCurrentDistance GUI 통합 (P1)
+
+### Notes
+- `test_metrics.py`에서 `TestGeodesicElectricalHybrid` 클래스가 `TestKCLCurrentDistance` 내부에 잘못 중첩되어 있던 기존 버그 발견 및 수정
+
+---
+
+## 2026-07-12 13:57 — Git 복원 + Gap Analysis: 실험 방법론 vs 현재 코드 괴리 분석
 
 ### 상황
 - 이전 작업 종료 후 `integration/power_grid_tda.py`가 작업 트리에서 삭제된 상태 발견
@@ -39,7 +75,7 @@
 
 ---
 
-## 2026-07-11 22:30 — Bus LODF Sensitivity NaN Fix: Bridge/Leaf Line LODF 처리
+## 2026-07-11 21:57 — Bus LODF Sensitivity NaN Fix: Bridge/Leaf Line LODF 처리
 
 ### Problem
 **Bus LODF Sensitivity 메트릭이 우크라이나 전력망에서 완전히 작동하지 않는 치명적 버그 발견.**
@@ -76,7 +112,7 @@ NaN이 `compute_bus_lodf_sensitivity()`의 벡터 연산을 통해 전체 거리
 ---
 # Project History
 
-## 2026-07-11 22:00 — Major Refactoring: 모듈 분할 완료 (graph_editor.py ~800줄 감축)
+## 2026-07-11 21:00 — Major Refactoring: 모듈 분할 완료 (graph_editor.py ~800줄 감축)
 
 ### Changes
 1. **`analysis/ai_analysis.py` 생성**: GraphEditor에서 AI 분석 로직 추출 (`AiAnalyzer` 클래스)
