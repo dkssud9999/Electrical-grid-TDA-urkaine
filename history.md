@@ -1,3 +1,44 @@
+## 2026-07-12 14:30 — Git 복원 + Gap Analysis: 실험 방법론 vs 현재 코드 괴리 분석
+
+### 상황
+- 이전 작업 종료 후 `integration/power_grid_tda.py`가 작업 트리에서 삭제된 상태 발견
+- `tda/vulnerability.py`에 `compare_metrics_vulnerability()` 및 `_detect_cycle_members()` 함수가 추가된 상태 (미커밋)
+- `integration/power_grid_tda.py.bak` 파일 존재 (1136줄, reformatted 버전)
+
+### 수행 작업
+1. **`integration/power_grid_tda.py` 복원**: git checkout으로 HEAD 버전 복구
+2. **`.bak` 파일 정리**: 불필요한 백업 파일 삭제
+3. **모든 파이썬 파일 파싱 확인**: 9개 파일 모두 SyntaxError 없음 ✅
+4. **53개 테스트 통과 확인** ✅
+5. **Gap Analysis 수행**: 실험 방법론(project objective.txt)과 현재 코드 간 괴리 6개 항목 식별
+
+### Gap Analysis 요약
+
+| # | 항목 | 상태 | 설명 |
+|---|------|------|------|
+| 1 | LODF 역수 기반 거리 | ❌ 미구현 | Primary approach이나 LODF pseudo-inverse 메트릭 없음 |
+| 2 | KCLCurrentDistance GUI 통합 | ⚠️ 미통합 | 클래스는 있으나 METRICS/compare/tests에 없음 |
+| 3 | 실험 자동화 파이프라인 | ❌ 미구현 | CLI 배치 도구 없음 |
+| 4 | 취약점 엔진 단위 테스트 | ❌ 미테스트 | vulnerability.py 테스트 0개 |
+| 5 | 지속성 호몰로지→취약점 매핑 | ⏳ 연구 중 | 3개 휴리스틱 사용 중 |
+| 6 | README.md 구버전 정보 | ⚠️ 업데이트 필요 | 47→53 tests, API 문서 누락 |
+
+### 업데이트된 문서
+- **TODO.md**: Gap Analysis 섹션 추가, 우선순위별 계획 업데이트
+- **unsolved issues.txt**: 미해결 이슈 P1/P2/P3 분류, power_grid_tda.py 복원 해결 표기
+- **history.md**: 본 항목 추가
+
+### Test Results
+```
+53 passed in 0.08s
+```
+
+### Notes
+- `tda/vulnerability.py`의 cosmetic 변경(H₀→H0 등)과 새 함수 추가는 유지하기로 결정
+- 연구팀 회의 결과에 따라 지속성 호몰로지-취약점 매핑 방식 변경 필요
+
+---
+
 ## 2026-07-11 22:30 — Bus LODF Sensitivity NaN Fix: Bridge/Leaf Line LODF 처리
 
 ### Problem

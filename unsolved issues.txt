@@ -29,5 +29,43 @@
    - 슬라이더 update 함수의 Betti number 계산도 `vr.betti_numbers(alpha)`로 통일
    - 이제 동일한 거리 행렬에 대해 `_tda_explorer()`와 `PowerGridTDAExplorer`가 **완전히 동일한 persistence 결과**를 반환함
 
-### 미해결 이슈
-  (없음 - 모든 알려진 이슈 해결됨)
+✅ 해결됨 (2026-07-12 14:30): **`integration/power_grid_tda.py` 삭제 복원**
+   - git checkout으로 복구 완료
+   - `.bak` 파일 정리 완료
+   - 모든 파이썬 파일 파싱 정상, 53개 테스트 모두 통과 확인
+
+---
+
+### 미해결 이슈 (2026-07-12 — Gap Analysis 기준)
+
+#### P1: 핵심 메트릭 누락
+- [ ] **LODFInverseDistance 메트릭 미구현**
+  - 방법론에서 "LODF 역수 기반 거리"가 가장 가능성 있는 계획
+  - 현재 BusLODFDistance는 LODF sensitivity 벡터 사용 중 (LODF 역수 아님)
+  - LODF 행렬의 pseudo-inverse를 직접 거리로 사용하는 메트릭 구현 필요
+  - `electrical_distance/metrics.py`에 새 클래스, GUI 등록, compare_metrics_vulnerability 포함, 단위 테스트 필요
+
+- [ ] **KCLCurrentDistance GUI 미통합**
+  - 클래스는 구현되어 있으나 power_grid_tda.py METRICS에 등록되지 않음
+  - compare_metrics_vulnerability() metric_fns에 포함되지 않음
+  - 단위 테스트 없음
+
+#### P2: 테스트 및 검증
+- [ ] **tda/vulnerability.py 단위 테스트 부재**
+  - compute_vulnerability_scores, rank_vulnerable_buses, compare_metrics_vulnerability, _detect_cycle_members 모두 테스트 없음
+  - 53개 기존 테스트는 모두 PTDF/VR 코어만 커버
+
+- [ ] **실험 자동화 CLI 도구 부재**
+  - 우크라이나 그리드 로드 → 모든 메트릭 → TDA → 취약점 비교 → 리포트 생성 파이프라인 없음
+  - compare_metrics_vulnerability() 함수 존재하나 호출/표시 도구 없음
+
+#### P2: GUI 개선
+- [ ] **compare_metrics_vulnerability GUI 미통합**
+  - 함수는 구현되었으나 GUI에서 호출/표시되지 않음
+  - 메트릭별 alignment score 시각화 필요
+
+#### P3: 문서화
+- [ ] **README.md 구버전 정보**
+  - "47 unit tests" → 실제 53개로 업데이트 필요
+  - vulnerability.py API 문서화 안 됨
+  - compare_metrics_vulnerability, KCLCurrentDistance 문서화 안 됨
