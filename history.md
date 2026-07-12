@@ -1,3 +1,22 @@
+## 2026-07-12 15:30 — Commit & Push 완료 + __pycache__ git 추적 제거
+
+### 수행 작업
+1. **P0 + P1 일괄 커밋 및 푸시** (`333d103`)
+   - P0: AC 조류계산 + N-1 contingency 분석 + 호몰로지 비교
+   - P1: vulnerability.py 전면 개편, power_grid_tda.py GUI 업데이트
+   - 문서 정리: README.md, TODO.md, history.md, unsolved issues.txt
+   - 신규 파일: `power_grid/ac_power_flow.py`, `power_grid/contingency.py`, `tests/test_contingency.py`
+
+2. **__pycache__ git 추적 제거** (`8a81401`)
+   - `.gitignore`에 `__pycache__/`가 있으나 기존에 추적 중이던 14개 pyc 파일 제거
+   - 앞으로 pycache는 git에 포함되지 않음
+
+### Git 상태
+- 작업 폴더 깨끗함 ✅
+- 2개 커밋 푸시 완료 (origin/main)
+
+---
+
 ## 2026-07-12 15:00 — 문서 정리: unsolved issues.txt 업데이트 (P0/P1 해결 표기)
 
 ### 수행 작업
