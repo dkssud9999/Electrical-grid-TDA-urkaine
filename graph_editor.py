@@ -617,10 +617,44 @@ class GraphEditor:
             messagebox.showerror("오류", f"취약점 점수 계산 중 오류: {e}")
             return
 
-        # ── 4. Color nodes on canvas ────────────────────────────────
+        # ── 4. Same-score clustering check ────────────────────────────
+        # Detect if too many nodes share the same score → algorithm weakness
+        unique_scores, counts = np.unique(
+            np.round(scores, decimals=4), return_counts=True
+        )
+        max_same_score_count = int(np.max(counts)) if len(counts) > 0 else 0
+        same_score_ratio = max_same_score_count / max(len(scores), 1)
+        algorithm_weak = same_score_ratio > 0.5 and len(unique_scores) < len(scores) * 0.3
+
+        # ── 5. Update summary with enriched info ──────────────────────
+        b0, b1 = vr.betti_numbers(float(vr.max_distance / 2))
+        n_vuln_high = int(np.sum(scores > 0.7))
+        n_vuln_medium = int(np.sum((scores > 0.4) & (scores <= 0.7)))
+        summary["overall_beta0"] = b0
+        summary["overall_beta1"] = b1
+        summary["n_vulnerable_high"] = n_vuln_high
+        summary["n_vulnerable_medium"] = n_vuln_medium
+        summary["top_node_idx"] = int(np.argmax(scores))
+        summary["top_node_label"] = bus_labels[int(np.argmax(scores))]
+        summary["top_node_score"] = float(np.max(scores))
+        summary["algorithm_weak"] = algorithm_weak
+        summary["same_score_ratio"] = float(same_score_ratio)
+
+        # ── 6. Warn if algorithm is too weak ──────────────────────────
+        if algorithm_weak:
+            messagebox.showwarning(
+                "⚠ 취약점 알고리즘 강화 필요",
+                f"동일한 점수를 가진 노드가 너무 많습니다 "
+                f"(최대 {max_same_score_count}개 노드가 동일 점수, "
+                f"비율: {same_score_ratio * 100:.1f}%).\n\n"
+                f"현재 취약점 알고리즘의 변별력이 충분하지 않습니다.\n"
+                f"더 정교한 거리 함수나 새로운 취약점 지표가 필요합니다.",
+            )
+
+        # ── 7. Color nodes on canvas ────────────────────────────────
         self._color_nodes_by_score(scores)
 
-        # ── 5. Show results window ─────────────────────────────────
+        # ── 8. Show results window ─────────────────────────────────
         grid_name = "수동 그래프"
         if self._power_grid_data:
             grid_name = self._power_grid_data.get("name", "전력망")
@@ -670,20 +704,61 @@ class GraphEditor:
             return self._build_euclidean_distance_matrix()
 
     def _color_nodes_by_score(self, scores: np.ndarray):
-        """Color nodes on canvas: red (vulnerable) → yellow → green (safe)."""
-        s_min, s_max = scores.min(), scores.max()
-        if s_max > s_min:
-            norm = (scores - s_min) / (s_max - s_min)
-        else:
-            norm = np.zeros_like(scores)
+        """Color nodes on canvas based on vulnerability scores.
 
+        Coloring strategy:
+          - ★ Top 1 highest-scoring node → magenta (#FF00FF) for maximum visibility
+          - Vulnerable (top 20% or score > 0.7) → red gradient (#FF4444 ~ #FFAA00)
+          - Safe → green gradient (#44BB44 ~ #88FF88)
+          - If more than 20% of nodes exceed the default threshold (0.7),
+            only the top 20% are marked as vulnerable.
+        """
+        n = len(scores)
+        if n == 0 or not self.nodes:
+            return
+
+        # ── 1. Identify the single most vulnerable node ──────────
+        top_idx = int(np.argmax(scores))
+
+        # ── 2. Determine vulnerability threshold ─────────────────
+        # Default high-risk threshold from the listbox logic (score > 0.7)
+        vuln_threshold = 0.7
+        n_vuln_candidates = int(np.sum(scores > vuln_threshold))
+        vuln_ratio = n_vuln_candidates / n if n > 0 else 0
+
+        if vuln_ratio > 0.2:
+            # More than 20% are "vulnerable" → cap at top 20%
+            sorted_idx = np.argsort(scores)[::-1]
+            top_20pct_count = max(1, int(np.ceil(n * 0.2)))
+            cutoff_score = scores[sorted_idx[top_20pct_count - 1]]
+            is_vulnerable = scores >= cutoff_score
+        else:
+            is_vulnerable = scores > vuln_threshold
+
+        # ── 3. Color each node ───────────────────────────────────
         for i, node in enumerate(self.nodes):
-            if i < len(norm):
-                t = norm[i]
-                r = int(255 * t)
-                g = int(255 * (1 - t))
-                b = 0
-                color = f"#{r:02x}{g:02x}{b:02x}"
+            if i >= n:
+                continue
+
+            if i == top_idx:
+                # ★ Single most vulnerable node → magenta
+                node.set_color("#FF00FF")
+            elif is_vulnerable[i]:
+                # Vulnerable → red gradient
+                t = min(1.0, scores[i])
+                r = int(255)
+                g = int(200 * (1 - t))
+                b = int(100 * (1 - t))
+                color = f"#{r:02x}{max(g, 0):02x}{max(b, 0):02x}"
+                node.set_color(color)
+            else:
+                # Safe → green gradient
+                t = max(0.0, scores[i])
+                g_base = 0xBB
+                r = int(120 * t)
+                g = int(g_base + (255 - g_base) * (1 - t))
+                b = int(80 * t)
+                color = f"#{min(r, 255):02x}{min(g, 255):02x}{min(b, 255):02x}"
                 node.set_color(color)
 
     def _reset_node_colors(self):

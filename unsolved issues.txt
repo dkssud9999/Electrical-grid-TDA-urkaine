@@ -1,4 +1,11 @@
 ## 해결된 이슈
+
+✅ **P3: 취약점 시각화 개선 (2026-07-12 20:30)**
+   - 최고 취약 노드(★)를 마젠타(#FF00FF)로 별도 표시하여 즉시 식별 가능
+   - 취약점이 전체의 20%를 초과하면 상위 20%만 취약점으로 마킹
+   - 동일 점수 노드 과다 시 알고리즘 강화 경고 메시지 표시
+   - 관련 상세: history.md 2026-07-12 20:30 참조
+
 ✅ 해결됨 (2026-07-12 15:00): **P0 — AC 조류분석 기반 N-1 취약점 분석 + 호몰로지 비교 구현 완료**
    - `power_grid/ac_power_flow.py`: Newton-Raphson AC 조류분석 솔버 (순수 numpy)
    - `power_grid/contingency.py`: N1ContingencyAnalyzer 클래스
@@ -75,4 +82,5 @@
    - compare_metrics_vulnerability 문서 추가
    - N-1 contingency analysis 기준 문서화
    - AC power flow solver 문서화
+* [IDEA] P3 — 취약점 알고리즘 강화: 동일 점수 노드가 50% 이상이면 algorithm_weak=True 경고 발생 중. 변별력 향상을 위한 새로운 거리 함수/메트릭 개발 필요 (현재 heuristic 기반 점수 분포의 한계)
    - CLI 도구 문서화

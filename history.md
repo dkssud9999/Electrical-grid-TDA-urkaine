@@ -1,3 +1,36 @@
+## 2026-07-12 20:30 — 취약점 시각화 개선: 최고 취약 노드 마젠타 표시 + 상위 20% 캡 + 동일 점수 경고
+
+### Changes
+1. **`_color_nodes_by_score()` 개선** (`graph_editor.py`):
+   - ★ **최고 취약 노드**를 마젠타(#FF00FF)로 표시하여 즉시 식별 가능
+   - 취약점이 전체의 20%를 초과하면 상위 20%만 취약점으로 마킹
+   - 안전/취약 구간 그라데이션 개선 (레드/그린 명확히 구분)
+
+2. **`_vulnerability_analysis()` 개선** (`graph_editor.py`):
+   - 동일 점수 클러스터링 감지 로직 추가
+   - `np.unique(np.round(scores, decimals=4), return_counts=True)` 분석
+   - 50% 이상의 노드가 동일 점수를 가지면 `algorithm_weak=True` 경고
+   - summary에 `top_node_idx`, `top_node_label`, `top_node_score`, `algorithm_weak`, `same_score_ratio` 추가
+   - summary에 `overall_beta0`, `overall_beta1`, `n_vulnerable_high`, `n_vulnerable_medium` 추가 (기존 누락)
+
+3. **`show_vulnerability_window()` 개선** (`ui/vulnerability_window.py`):
+   - ★ 최고 취약 노드 전용 상단 표시 프레임 (마젠타 테두리 + ★ 레이블)
+   - 취약점 알고리즘 강화 필요 경고 배너 표시 (`algorithm_weak=True`)
+   - 리스트박스에서 최고 취약 노드 `★ 위험 (최고)` 레이블 + 마젠타 색상
+   - 범례에 `★ 최고 취약 노드` 추가
+
+4. **`unsolved issues.txt` 업데이트**: 새 이슈 기록
+
+### Test Results
+```
+201 passed in 0.94s
+```
+
+### Notes
+- 취약점 변별력(동일 점수 비율)을 프로젝트 objective.txt의 요구사항에 맞춰 모니터링
+- 추후 더 정교한 거리 함수/취약점 지표 개발 시 algorithm_weak 경고를 참고
+
+---
 ## 2026-07-12 17:40 — 테스트 확장 (GridGraphConverter, UkrainaLoader, PTDF edge cases) + 버그 수정 + __pycache__ 정리
 
 ### 수행 작업
