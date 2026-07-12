@@ -24,10 +24,12 @@ import numpy as np
 # ── Logging ────────────────────────────────────────────────────────
 try:
     from utils.logger import get_logger, setup_logging
+
     setup_logging()
     log = get_logger(__name__)
 except ImportError:
     import logging
+
     log = logging.getLogger(__name__)
     log.setLevel(logging.WARNING)
 
@@ -66,6 +68,7 @@ try:
     from integration.power_grid_tda import PowerGridTDAExplorer, METRICS
     from power_grid.importer import load_grid, get_test_grid_3bus, get_test_grid_5bus
     from power_grid.ukraine_loader import get_ukraine_330kv_grid, get_large_ukraine_grid
+
     _HAS_ELEC = True
 except ImportError:
     _HAS_ELEC = False
@@ -95,6 +98,9 @@ class GraphEditor:
         self.hovered_node = None
         self.hovered_edge = None
 
+        # Vulnerability display state
+        self._vulnerability_colors_active = False
+
         # Node counter for auto-labeling
         self.node_counter = 0
 
@@ -123,23 +129,37 @@ class GraphEditor:
             "우클릭: 삭제",
         ).pack(side=tk.LEFT)
 
-        ttk.Button(toolbar, text="⚡ 전력망 임포트", command=self._import_power_grid).pack(
-            side=tk.RIGHT, padx=5,
+        ttk.Button(
+            toolbar, text="⚡ 전력망 임포트", command=self._import_power_grid
+        ).pack(
+            side=tk.RIGHT,
+            padx=5,
         )
         ttk.Button(toolbar, text="전체 삭제", command=self._clear_all).pack(
-            side=tk.RIGHT, padx=5,
+            side=tk.RIGHT,
+            padx=5,
         )
-        ttk.Button(toolbar, text="그래프 정보 내보내기", command=self._export_info).pack(
-            side=tk.RIGHT, padx=5,
+        ttk.Button(
+            toolbar, text="그래프 정보 내보내기", command=self._export_info
+        ).pack(
+            side=tk.RIGHT,
+            padx=5,
         )
-        ttk.Button(toolbar, text="🔬 TDA Distance", command=self._open_power_grid_tda).pack(
-            side=tk.RIGHT, padx=5,
+        ttk.Button(
+            toolbar, text="🔬 TDA Distance", command=self._open_power_grid_tda
+        ).pack(
+            side=tk.RIGHT,
+            padx=5,
         )
         ttk.Button(toolbar, text="📊 TDA 탐색기", command=self._tda_explorer).pack(
-            side=tk.RIGHT, padx=5,
+            side=tk.RIGHT,
+            padx=5,
         )
-        ttk.Button(toolbar, text="⚠ 취약점 분석", command=self._vulnerability_analysis).pack(
-            side=tk.RIGHT, padx=5,
+        ttk.Button(
+            toolbar, text="⚠ 취약점 분석", command=self._vulnerability_analysis
+        ).pack(
+            side=tk.RIGHT,
+            padx=5,
         )
 
         # Canvas
@@ -213,7 +233,9 @@ class GraphEditor:
         """Remove all nodes and edges."""
         if not self.nodes and not self.edges:
             return
-        if not messagebox.askyesno("모두 지우기", "모든 노드와 엣지를 삭제하시겠습니까?"):
+        if not messagebox.askyesno(
+            "모두 지우기", "모든 노드와 엣지를 삭제하시겠습니까?"
+        ):
             return
         for edge in list(self.edges):
             edge.delete()
@@ -253,7 +275,9 @@ class GraphEditor:
         win.geometry("500x300")
         win.configure(bg="#1E1E2E")
 
-        ttk.Label(win, text="전력망 데이터 소스 선택", font=("Helvetica", 12, "bold")).pack(pady=10)
+        ttk.Label(
+            win, text="전력망 데이터 소스 선택", font=("Helvetica", 12, "bold")
+        ).pack(pady=10)
 
         def load_test_grid(name, grid_fn):
             grid_data = grid_fn()
@@ -320,7 +344,9 @@ class GraphEditor:
             except Exception as e:
                 messagebox.showerror("임포트 실패", str(e))
 
-        ttk.Button(win, text="📁 파일에서 불러오기...", command=load_from_file).pack(pady=5)
+        ttk.Button(win, text="📁 파일에서 불러오기...", command=load_from_file).pack(
+            pady=5
+        )
         ttk.Button(win, text="취소", command=win.destroy).pack(pady=10)
 
     def _load_grid_data(self, grid_data):
@@ -367,13 +393,15 @@ class GraphEditor:
 
         buses = []
         for i, node in enumerate(self.nodes):
-            buses.append({
-                "id": i,
-                "name": node.label,
-                "x": node.x,
-                "y": node.y,
-                "v_nom": 1.0,
-            })
+            buses.append(
+                {
+                    "id": i,
+                    "name": node.label,
+                    "x": node.x,
+                    "y": node.y,
+                    "v_nom": 1.0,
+                }
+            )
 
         pairs = []
         susc = []
@@ -414,11 +442,15 @@ class GraphEditor:
     def _tda_explorer(self):
         """Open the TDA Explorer using the extracted TdaExplorerWindow."""
         if len(self.nodes) == 0:
-            messagebox.showinfo("TDA 탐색기", "그래프에 노드가 없습니다.\n먼저 노드를 추가하세요!")
+            messagebox.showinfo(
+                "TDA 탐색기", "그래프에 노드가 없습니다.\n먼저 노드를 추가하세요!"
+            )
             return
 
         explorer = TdaExplorerWindow(
-            self.root, self.nodes, self.edges,
+            self.root,
+            self.nodes,
+            self.edges,
             on_ask_ai=lambda parent_win: self._ask_ai_tda(parent_win),
         )
         explorer.open()
@@ -468,8 +500,9 @@ class GraphEditor:
     def _clear_selected_node(self):
         """Deselect the currently selected node."""
         if self.selected_node:
-            self.selected_node.set_color(Node.COLOR_NORMAL)
-            self.selected_node = None
+            if not self._vulnerability_colors_active:
+                self.selected_node.set_color(Node.COLOR_NORMAL)
+        self.selected_node = None
 
     def _on_left_click(self, event):
         """Handle left mouse button press."""
@@ -519,6 +552,9 @@ class GraphEditor:
 
     def _on_mouse_move(self, event):
         """Handle mouse movement for hover effects."""
+        # Skip hover effects when vulnerability colors are active
+        if self._vulnerability_colors_active:
+            return
         x, y = event.x, event.y
         node = self.get_node_at(x, y)
         if node and node is not self.hovered_node:
@@ -578,7 +614,8 @@ class GraphEditor:
         """
         if len(self.nodes) < 2:
             messagebox.showwarning(
-                "경고", "취약점 분석을 위해 최소 2개 이상의 노드가 필요합니다.",
+                "경고",
+                "취약점 분석을 위해 최소 2개 이상의 노드가 필요합니다.",
             )
             return
 
@@ -591,9 +628,7 @@ class GraphEditor:
                 return
             buses = self._power_grid_data.get("buses", [])
             if len(buses) == len(self.nodes):
-                bus_labels = [
-                    b.get("name") or f"Bus{b['id']}" for b in buses
-                ]
+                bus_labels = [b.get("name") or f"Bus{b['id']}" for b in buses]
         else:
             dist_matrix = self._build_euclidean_distance_matrix()
 
@@ -611,7 +646,10 @@ class GraphEditor:
         try:
             scores = compute_vulnerability_scores(dist_matrix, vr)
             summary = compute_vulnerability_summary(
-                dist_matrix, vr, bus_labels, top_k=10,
+                dist_matrix,
+                vr,
+                bus_labels,
+                top_k=10,
             )
         except Exception as e:
             messagebox.showerror("오류", f"취약점 점수 계산 중 오류: {e}")
@@ -624,7 +662,9 @@ class GraphEditor:
         )
         max_same_score_count = int(np.max(counts)) if len(counts) > 0 else 0
         same_score_ratio = max_same_score_count / max(len(scores), 1)
-        algorithm_weak = same_score_ratio > 0.5 and len(unique_scores) < len(scores) * 0.3
+        algorithm_weak = (
+            same_score_ratio > 0.5 and len(unique_scores) < len(scores) * 0.3
+        )
 
         # ── 5. Update summary with enriched info ──────────────────────
         b0, b1 = vr.betti_numbers(float(vr.max_distance / 2))

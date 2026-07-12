@@ -29,7 +29,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from .ac_power_flow import ACPowerFlow
+from .ac_power_flow import ACPowerFlow, DCPowerFlow
 
 
 class N1ContingencyAnalyzer:
@@ -39,6 +39,9 @@ class N1ContingencyAnalyzer:
       - Line overloads
       - Voltage violations
       - Islanding
+
+    Uses AC power flow as primary solver (always converges).
+    Falls back to DC if AC power flow does not converge.
     """
 
     def __init__(
@@ -48,6 +51,7 @@ class N1ContingencyAnalyzer:
         v_max: float = 1.1,
         overload_threshold: float = 1.0,
         slack_bus: int = 0,
+        use_dc_fallback: bool = True,
     ):
         """
         Parameters
@@ -67,12 +71,17 @@ class N1ContingencyAnalyzer:
             Fraction of rate that constitutes overload. Default 1.0 (100%).
         slack_bus : int
             Index of the slack bus.
+        use_dc_fallback : bool
+            If True, fall back to DC power flow when AC does not converge.
+            If False, only AC power flow is used (may give unreliable results
+            for grids where AC does not converge).
         """
         self.grid = grid_data
         self.v_min = v_min
         self.v_max = v_max
         self.overload_threshold = overload_threshold
         self.slack_bus = slack_bus
+        self.use_dc_fallback = use_dc_fallback
 
         # Extract grid data
         self.n_bus = len(grid_data["buses"])
@@ -103,6 +112,64 @@ class N1ContingencyAnalyzer:
         for ld in self.loads:
             p_inj[ld["bus"]] -= ld["p_mw"]
         return p_inj
+
+    def _run_power_flow(self, bus_pairs, r_list, x_list):
+        """Run power flow with continuation fallback and DC fallback.
+
+        Strategy:
+          1. Try AC power flow with continuation (scales up from 0 → 100% loading)
+          2. If continuation converged at 100% loading → use AC result
+          3. If continuation partially converged (loading_scale < 1.0) → still use
+             AC result but flag the partial loading in `loading_scale`
+          4. If AC completely fails (loading_scale = 0) → fall back to DC
+
+        Returns
+        -------
+        result : dict with keys: V, theta, converged, branch_flows,
+                 method, loading_scale
+        """
+        # Try AC power flow first with continuation
+        ac_solver = ACPowerFlow(
+            self.n_bus, bus_pairs, r_list, x_list, self.base_mva
+        )
+        result = ac_solver.run_power_flow(
+            self.p_inj, slack_bus=self.slack_bus, pv_buses=self.pv_buses,
+        )
+
+        loading_scale = result.get("loading_scale", 0.0)
+
+        # Case 1: Full convergence at 100% loading
+        if result["converged"] and loading_scale >= 1.0 - 1e-6:
+            result["method"] = "ac"
+            result["partial_load"] = False
+            return result
+
+        # Case 2: Partial convergence (continuation reached some loading level)
+        if loading_scale > 0.0:
+            result["method"] = "ac_partial"
+            result["partial_load"] = True
+            # Keep the result as-is; converged flag may be False but we still
+            # have a useful partial solution
+            return result
+
+        # Case 3: AC completely failed — fall back to DC
+        if self.use_dc_fallback:
+            dc_solver = DCPowerFlow(
+                self.n_bus, bus_pairs, x_list, self.base_mva
+            )
+            dc_result = dc_solver.run_power_flow(
+                self.p_inj, slack_bus=self.slack_bus,
+            )
+            dc_result["method"] = "dc"
+            dc_result["ac_converged"] = False
+            dc_result["loading_scale"] = 1.0
+            dc_result["partial_load"] = False
+            return dc_result
+
+        # No fallback — return AC result as-is
+        result["method"] = "ac"
+        result["partial_load"] = True
+        return result
 
     def _check_connectivity(
         self,
@@ -176,18 +243,33 @@ class N1ContingencyAnalyzer:
             - total_edges: int
             - vulnerability_ratio: float (n_vulnerable / total_edges)
             - base_case: dict with base case power flow results
+            - baseline_method: str (ac / dc / ac_partial)
+            - baseline_loading_scale: float
+            - n_partial_load: int (number of contingencies with partial AC load)
+            - n_dc_fallback: int (number of contingencies that fell back to DC)
+            - partial_load_warning: bool
         """
         # Base case power flow
-        base_solver = ACPowerFlow(
-            self.n_bus, self.bus_pairs, self.r_list, self.x_list, self.base_mva
+        base_result = self._run_power_flow(
+            self.bus_pairs, self.r_list, self.x_list
         )
-        base_result = base_solver.run_power_flow(
-            self.p_inj, slack_bus=self.slack_bus, pv_buses=self.pv_buses,
-        )
+        base_flows = base_result["branch_flows"]
+
+        # Store base case loadings for comparison
+        base_loadings = np.zeros(self.n_line, dtype=np.float64)
+        base_overloaded = set()
+        for l_idx in range(self.n_line):
+            rate = self.rate_list[l_idx]
+            if rate > 0:
+                base_loadings[l_idx] = abs(base_flows[l_idx]) / rate
+                if abs(base_flows[l_idx]) > rate * self.overload_threshold:
+                    base_overloaded.add(l_idx)
 
         vulnerable_edges = []
         violation_details = {}
         vulnerable_edge_ids = set()
+        n_partial_load = 0
+        n_dc_fallback = 0
 
         for line_idx, line in enumerate(self.lines):
             line_id = line["id"]
@@ -215,7 +297,6 @@ class N1ContingencyAnalyzer:
 
             # Skip power flow if too few lines remain
             if len(reduced_pairs) < self.n_bus - 1:
-                # Not enough lines to form a connected graph
                 if "islanding" not in violations:
                     violations.append("islanding")
                 violation_details[line_id] = {
@@ -225,69 +306,139 @@ class N1ContingencyAnalyzer:
                     "voltage_violations": [],
                     "components": [list(c) for c in components],
                     "converged": False,
+                    "method": "none",
+                    "loading_scale": 0.0,
+                    "partial_load": False,
                 }
                 if violations:
                     vulnerable_edges.append((line_id, line_name, violations))
                     vulnerable_edge_ids.add(line_id)
                 continue
 
-            # Run AC power flow without the outaged line
-            solver = ACPowerFlow(
-                self.n_bus, reduced_pairs, reduced_r, reduced_x, self.base_mva
-            )
-            pf_result = solver.run_power_flow(
-                self.p_inj, slack_bus=self.slack_bus, pv_buses=self.pv_buses,
-            )
+            # Run power flow without the outaged line
+            pf_result = self._run_power_flow(reduced_pairs, reduced_r, reduced_x)
 
-            # Check for voltage violations
-            voltage_violations = []
-            V = pf_result["V"]
-            for bus_idx in range(self.n_bus):
-                if V[bus_idx] < self.v_min:
-                    voltage_violations.append({
-                        "bus": bus_idx,
-                        "type": "undervoltage",
-                        "V": float(V[bus_idx]),
-                    })
-                elif V[bus_idx] > self.v_max:
-                    voltage_violations.append({
-                        "bus": bus_idx,
-                        "type": "overvoltage",
-                        "V": float(V[bus_idx]),
-                    })
-            if voltage_violations:
-                violations.append("voltage_violation")
+            # Track method usage
+            method = pf_result.get("method", "unknown")
+            loading_scale = pf_result.get("loading_scale", 1.0)
+            partial_load = pf_result.get("partial_load", False)
+            if method == "dc":
+                n_dc_fallback += 1
+            elif partial_load or method == "ac_partial":
+                n_partial_load += 1
 
-            # Check for line overloads
+            # Initialize variables that may be set inside the if block
             overloaded_lines = []
-            branch_flows = pf_result["branch_flows"]
-            for l_idx in range(len(reduced_pairs)):
-                flow_abs = abs(branch_flows[l_idx])
-                rate = reduced_rate[l_idx]
-                if rate > 0 and flow_abs > rate * self.overload_threshold:
-                    overloaded_lines.append({
-                        "line_idx": l_idx,
-                        "flow_mw": float(flow_abs),
-                        "rate_mva": float(rate),
-                        "loading_pct": float(flow_abs / rate * 100),
-                    })
-            if overloaded_lines:
-                violations.append("overload")
+            voltage_violations = []
+
+            # Only check overloads and voltage violations if power flow converged
+            if pf_result["converged"]:
+                # Check for voltage violations
+                voltage_violations = []
+                V = pf_result["V"]
+                for bus_idx in range(self.n_bus):
+                    if V[bus_idx] < self.v_min:
+                        voltage_violations.append({
+                            "bus": bus_idx,
+                            "type": "undervoltage",
+                            "V": float(V[bus_idx]),
+                        })
+                    elif V[bus_idx] > self.v_max:
+                        voltage_violations.append({
+                            "bus": bus_idx,
+                            "type": "overvoltage",
+                            "V": float(V[bus_idx]),
+                        })
+                if voltage_violations:
+                    violations.append("voltage_violation")
+
+                # Check for line overloads — only flag NEW overloads not present in base case
+                overloaded_lines = []
+                branch_flows = pf_result["branch_flows"]
+                for l_idx in range(len(reduced_pairs)):
+                    flow_abs = abs(branch_flows[l_idx])
+                    rate = reduced_rate[l_idx]
+                    if rate > 0 and flow_abs > rate * self.overload_threshold:
+                        # Map reduced line index back to original line index
+                        orig_idx = -1
+                        cnt = -1
+                        for oi in range(self.n_line):
+                            if oi != line_idx:
+                                cnt += 1
+                                if cnt == l_idx:
+                                    orig_idx = oi
+                                    break
+                        # Only flag as NEW overload if not already overloaded in base case
+                        if orig_idx not in base_overloaded:
+                            overloaded_lines.append({
+                                "line_idx": l_idx,
+                                "orig_line_idx": orig_idx,
+                                "flow_mw": float(flow_abs),
+                                "rate_mva": float(rate),
+                                "loading_pct": float(flow_abs / rate * 100),
+                                "base_loading_pct": float(base_loadings[orig_idx] * 100),
+                            })
+                if overloaded_lines:
+                    violations.append("overload")
 
             violation_details[line_id] = {
                 "line_name": line_name,
                 "violations": violations,
-                "overloaded_lines": overloaded_lines,
-                "voltage_violations": voltage_violations,
+                "overloaded_lines": overloaded_lines if pf_result["converged"] else [],
+                "voltage_violations": voltage_violations if pf_result["converged"] else [],
                 "components": [list(c) for c in components] if not is_connected else [],
                 "converged": pf_result["converged"],
-                "iterations": pf_result["iterations"],
-                "mismatch": pf_result["mismatch"],
+                "method": method,
+                "loading_scale": loading_scale,
+                "partial_load": partial_load,
+                "iterations": pf_result.get("iterations", 0),
+                "mismatch": pf_result.get("mismatch", 0.0),
             }
 
             if violations:
                 vulnerable_edges.append((line_id, line_name, violations))
                 vulnerable_edge_ids.add(line_id)
+
+        # ── Include baseline overloaded lines as vulnerable ────
+                # Lines that are already overloaded in the intact grid are themselves
+                # vulnerability points, even without any contingency.
+                baseline_method = base_result.get("method", "ac")
+                baseline_loading_scale = base_result.get("loading_scale", 1.0)
+                baseline_partial_load = base_result.get("partial_load", False)
+        
+                for l_idx in base_overloaded:
+                    lid = self.lines[l_idx]["id"]
+                    if lid not in vulnerable_edge_ids:
+                        vulnerable_edge_ids.add(lid)
+                        violations = ["baseline_overload"]
+                        vulnerable_edges.append((lid, self.lines[l_idx].get("name", f"L{lid}"), violations))
+                        if lid not in violation_details:
+                            violation_details[lid] = {
+                                "line_name": self.lines[l_idx].get("name", f"L{lid}"),
+                                "violations": violations,
+                                "overloaded_lines": [],
+                                "voltage_violations": [],
+                                "components": [],
+                                "converged": base_result.get("converged", False),
+                                "method": baseline_method,
+                                "loading_scale": baseline_loading_scale,
+                                "partial_load": baseline_partial_load,
+                                "baseline_loading_pct": float(base_loadings[l_idx] * 100),
+                            }
+                        else:
+                            # Append to existing violation details
+                            violation_details[lid]["violations"].append("baseline_overload")
+                            violation_details[lid]["baseline_loading_pct"] = float(base_loadings[l_idx] * 100)
+        
+                # Check if baseline also had convergence issues
+        baseline_method = base_result.get("method", "ac")
+        baseline_loading_scale = base_result.get("loading_scale", 1.0)
+        baseline_partial_load = base_result.get("partial_load", False)
+        partial_load_warning = (
+            baseline_partial_load
+            or n_partial_load > 0
+            or n_dc_fallback > 0
+        )
 
         return {
             "n_bus": self.n_bus,
@@ -299,12 +450,23 @@ class N1ContingencyAnalyzer:
             "n_vulnerable": len(vulnerable_edge_ids),
             "total_edges": self.n_line,
             "vulnerability_ratio": len(vulnerable_edge_ids) / max(self.n_line, 1),
+                    "baseline_overloaded": {self.lines[i]["id"] for i in base_overloaded},
+            "baseline_method": baseline_method,
+            "baseline_loading_scale": baseline_loading_scale,
+            "baseline_converged": base_result.get("converged", False),
+            "n_partial_load": n_partial_load,
+            "n_dc_fallback": n_dc_fallback,
+            "partial_load_warning": partial_load_warning,
             "base_case": {
                 "converged": base_result["converged"],
-                "iterations": base_result["iterations"],
-                "mismatch": base_result["mismatch"],
+                "method": baseline_method,
+                "loading_scale": baseline_loading_scale,
+                "partial_load": baseline_partial_load,
+                "iterations": base_result.get("iterations", 0),
+                "mismatch": base_result.get("mismatch", 0.0),
                 "V": base_result["V"].tolist(),
                 "theta": base_result["theta"].tolist(),
+                "branch_flows": base_result["branch_flows"].tolist(),
             },
         }
 
@@ -416,33 +578,33 @@ def get_cycle_edges_from_vr(
                     core_edges.add((i, j))
 
         # Collect edges in the 2-core that are also in the grid topology
-                candidate_edges = set()
-                for i in core_vertices:
-                    for j in adj[i]:
-                        if j in core_vertices and i < j and j in grid_adj[i]:
-                            candidate_edges.add((i, j))
-        
-                # Check if each candidate edge is part of a cycle in the GRID topology.
-                # An edge (u,v) is in a cycle if there is an alternative path
-                # between u and v in the grid that doesn't use (u,v).
-                def is_grid_bridge(u: int, v: int) -> bool:
-                    """Check if edge (u,v) is a bridge in the grid topology."""
-                    # BFS from u without using edge (u,v)
-                    visited = {u}
-                    stack = [u]
-                    while stack:
-                        node = stack.pop()
-                        for neighbor in grid_adj[node]:
-                            if (node == u and neighbor == v) or (node == v and neighbor == u):
-                                continue
-                            if neighbor not in visited:
-                                visited.add(neighbor)
-                                stack.append(neighbor)
-                    return v not in visited
-        
-                for i, j in candidate_edges:
-                    if not is_grid_bridge(i, j):
-                        cycle_edges.add((i, j))
+        candidate_edges = set()
+        for i in core_vertices:
+            for j in adj[i]:
+                if j in core_vertices and i < j and j in grid_adj[i]:
+                    candidate_edges.add((i, j))
+
+        # Check if each candidate edge is part of a cycle in the GRID topology.
+        # An edge (u,v) is in a cycle if there is an alternative path
+        # between u and v in the grid that doesn't use (u,v).
+        def is_grid_bridge(u: int, v: int) -> bool:
+            """Check if edge (u,v) is a bridge in the grid topology."""
+            # BFS from u without using edge (u,v)
+            visited = {u}
+            stack = [u]
+            while stack:
+                node = stack.pop()
+                for neighbor in grid_adj[node]:
+                    if (node == u and neighbor == v) or (node == v and neighbor == u):
+                        continue
+                    if neighbor not in visited:
+                        visited.add(neighbor)
+                        stack.append(neighbor)
+            return v not in visited
+
+        for i, j in candidate_edges:
+            if not is_grid_bridge(i, j):
+                cycle_edges.add((i, j))
 
     return cycle_edges
 
