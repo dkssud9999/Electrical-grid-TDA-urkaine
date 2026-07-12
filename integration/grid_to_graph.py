@@ -175,6 +175,10 @@ class GridGraphConverter:
         # Clear existing graph
         editor._clear_all()
 
+                # Handle empty grid
+        if not self.buses:
+            return
+        
         # Determine positions
         if use_geo_layout:
             positions = self._scale_positions(
