@@ -80,7 +80,9 @@ def _metric_ptdf_vector(data: dict, p: float = 2) -> np.ndarray:
 
 
 def _metric_effective_resistance(data: dict) -> np.ndarray:
-    return compute_effective_resistance_matrix(data["n_bus"], data["bus_pairs"], data["susceptances"])
+    return compute_effective_resistance_matrix(
+        data["n_bus"], data["bus_pairs"], data["susceptances"]
+    )
 
 
 def _metric_bus_lodf(data: dict) -> np.ndarray:
@@ -139,6 +141,7 @@ def _metric_kcl_current(data: dict) -> np.ndarray:
     injection at bus i (with slack bus as reference).
     """
     from electrical_distance.metrics import KCLCurrentDistance
+
     metric = KCLCurrentDistance(p_norm=2)
     return metric.compute(data["n_bus"], data["bus_pairs"], data["susceptances"])
 
@@ -190,8 +193,11 @@ class PowerGridTDAExplorer:
         ttk.Label(top, text="Distance Metric:").pack(side=tk.LEFT)
         metric_var = tk.StringVar(value=list(METRICS.keys())[0])
         metric_menu = ttk.Combobox(
-            top, textvariable=metric_var,
-            values=list(METRICS.keys()), state="readonly", width=25,
+            top,
+            textvariable=metric_var,
+            values=list(METRICS.keys()),
+            state="readonly",
+            width=25,
         )
         metric_menu.pack(side=tk.LEFT, padx=5)
 
@@ -214,8 +220,11 @@ class PowerGridTDAExplorer:
         vr_frame = ttk.LabelFrame(main, text="Vietoris-Rips Complex")
         vr_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         vr_canvas = tk.Canvas(
-            vr_frame, width=self.CANVAS_W, height=self.CANVAS_H,
-            bg="#1E1E2E", highlightthickness=0,
+            vr_frame,
+            width=self.CANVAS_W,
+            height=self.CANVAS_H,
+            bg="#1E1E2E",
+            highlightthickness=0,
         )
         vr_canvas.pack(fill=tk.BOTH, expand=True)
 
@@ -226,16 +235,22 @@ class PowerGridTDAExplorer:
         pd_frame = ttk.LabelFrame(right_frame, text="Persistence Diagram")
         pd_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         pd_canvas = tk.Canvas(
-            pd_frame, width=400, height=300,
-            bg="#1E1E2E", highlightthickness=0,
+            pd_frame,
+            width=400,
+            height=300,
+            bg="#1E1E2E",
+            highlightthickness=0,
         )
         pd_canvas.pack(fill=tk.BOTH, expand=True)
 
         bc_frame = ttk.LabelFrame(right_frame, text="Betti Curves")
         bc_frame.pack(fill=tk.BOTH, expand=True)
         bc_canvas = tk.Canvas(
-            bc_frame, width=400, height=200,
-            bg="#1E1E2E", highlightthickness=0,
+            bc_frame,
+            width=400,
+            height=200,
+            bg="#1E1E2E",
+            highlightthickness=0,
         )
         bc_canvas.pack(fill=tk.BOTH, expand=True)
 
@@ -244,24 +259,46 @@ class PowerGridTDAExplorer:
         slider_frame.pack(fill=tk.X, padx=10, pady=5)
         alpha_var = tk.DoubleVar(value=0)
         alpha_scale = ttk.Scale(
-            slider_frame, from_=0, to=100, variable=alpha_var,
-            orient=tk.HORIZONTAL, length=300,
+            slider_frame,
+            from_=0,
+            to=100,
+            variable=alpha_var,
+            orient=tk.HORIZONTAL,
+            length=300,
         )
         alpha_scale.pack(side=tk.LEFT, padx=10)
         alpha_label = ttk.Label(slider_frame, text="α = 0.00", width=12)
         alpha_label.pack(side=tk.LEFT)
 
         # Animate + Compare + Vulnerability buttons
-        ttk.Button(slider_frame, text="▶ Animate",
-                   command=lambda: self._animate(vr_canvas, pd_canvas, bc_canvas,
-                                                  metric_var, alpha_var, alpha_scale,
-                                                  b0_lbl, b1_lbl, desc_label)).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(slider_frame, text="📊 Compare All Metrics",
-                   command=lambda: self._compare_metrics()).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(slider_frame, text="📊 Metrics vs N-1",
-                           command=self._compare_metrics_vulnerability).pack(side=tk.RIGHT, padx=5)
-                ttk.Button(slider_frame, text="⚠ 취약점 분석",
-                   command=self._vulnerability_analysis).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(
+            slider_frame,
+            text="▶ Animate",
+            command=lambda: self._animate(
+                vr_canvas,
+                pd_canvas,
+                bc_canvas,
+                metric_var,
+                alpha_var,
+                alpha_scale,
+                b0_lbl,
+                b1_lbl,
+                desc_label,
+            ),
+        ).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(
+            slider_frame,
+            text="📊 Compare All Metrics",
+            command=lambda: self._compare_metrics(),
+        ).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(
+            slider_frame,
+            text="📊 Metrics vs N-1",
+            command=self._compare_metrics_vulnerability,
+        ).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(
+            slider_frame, text="⚠ 취약점 분석", command=self._vulnerability_analysis
+        ).pack(side=tk.RIGHT, padx=5)
 
         # State
         self._metric_var = metric_var
@@ -284,8 +321,12 @@ class PowerGridTDAExplorer:
             if name in METRICS:
                 desc_label.config(text=METRICS[name]["desc"][:60])
             self._update_vr(
-                vr_canvas, pd_canvas, bc_canvas,
-                alpha_var, b0_lbl, b1_lbl,
+                vr_canvas,
+                pd_canvas,
+                bc_canvas,
+                alpha_var,
+                b0_lbl,
+                b1_lbl,
             )
 
         metric_var.trace_add("write", on_metric_change)
@@ -293,8 +334,12 @@ class PowerGridTDAExplorer:
         # Slider callback
         def on_slider(*_):
             self._update_vr(
-                vr_canvas, pd_canvas, bc_canvas,
-                alpha_var, b0_lbl, b1_lbl,
+                vr_canvas,
+                pd_canvas,
+                bc_canvas,
+                alpha_var,
+                b0_lbl,
+                b1_lbl,
             )
 
         alpha_var.trace_add("write", on_slider)
@@ -312,12 +357,13 @@ class PowerGridTDAExplorer:
         if hasattr(self.parent, "app") and hasattr(self.parent.app, "nodes"):
             data["positions"] = [(n.x, n.y) for n in self.parent.app.nodes]
         else:
-            data["positions"] = self.data.get("bus_positions", [(0, 0)] * self.data["n_bus"])
+            data["positions"] = self.data.get(
+                "bus_positions", [(0, 0)] * self.data["n_bus"]
+            )
 
         return METRICS[metric_name]["fn"](data)
 
-    def _update_vr(self, vr_canvas, pd_canvas, bc_canvas,
-                   alpha_var, b0_lbl, b1_lbl):
+    def _update_vr(self, vr_canvas, pd_canvas, bc_canvas, alpha_var, b0_lbl, b1_lbl):
         """Recompute and redraw with current metric + alpha."""
         name = self._metric_var.get()
         D = self._get_distance_matrix(name)
@@ -384,16 +430,19 @@ class PowerGridTDAExplorer:
                 if D[i, j] <= alpha + 1e-10:
                     x1, y1 = scaled[i]
                     x2, y2 = scaled[j]
-                    canvas.create_line(x1, y1, x2, y2, fill="#FFD700",
-                                       width=2, tags="vr_edge")
+                    canvas.create_line(
+                        x1, y1, x2, y2, fill="#FFD700", width=2, tags="vr_edge"
+                    )
 
         # Draw nodes
         r = 14
         for i, (sx, sy) in enumerate(scaled):
-            canvas.create_oval(sx - r, sy - r, sx + r, sy + r,
-                               fill="#4A90D9", outline="white", width=2)
-            canvas.create_text(sx, sy, text=str(i),
-                               fill="white", font=("Helvetica", 9, "bold"))
+            canvas.create_oval(
+                sx - r, sy - r, sx + r, sy + r, fill="#4A90D9", outline="white", width=2
+            )
+            canvas.create_text(
+                sx, sy, text=str(i), fill="white", font=("Helvetica", 9, "bold")
+            )
 
     def _draw_persistence_diagram(self, canvas, h0, h1, max_d, alpha, w=400, h=300):
         """Draw persistence diagram on canvas."""
@@ -407,7 +456,9 @@ class PowerGridTDAExplorer:
         canvas.create_line(margin, h - margin, w - margin, h - margin, fill="#555")
         canvas.create_line(margin, margin, margin, h - margin, fill="#555")
         # Diagonal
-        canvas.create_line(margin, h - margin, margin + pw, margin, fill="#444", dash=(4, 4))
+        canvas.create_line(
+            margin, h - margin, margin + pw, margin, fill="#444", dash=(4, 4)
+        )
 
         if pm <= 0:
             return
@@ -422,40 +473,72 @@ class PowerGridTDAExplorer:
             if b >= d - 1e-12:
                 continue
             cx, cy = tc(b, d)
-            canvas.create_oval(cx - 3, cy - 3, cx + 3, cy + 3,
-                               fill="#4A90D9", outline="#4A90D9")
+            canvas.create_oval(
+                cx - 3, cy - 3, cx + 3, cy + 3, fill="#4A90D9", outline="#4A90D9"
+            )
 
         # H1 points (red) — skip birth=death (diagonal) points
         for b, d in h1:
             if b >= d - 1e-12:
                 continue
             cx, cy = tc(b, d)
-            canvas.create_oval(cx - 3, cy - 3, cx + 3, cy + 3,
-                               fill="#FF6B6B", outline="#FF6B6B")
+            canvas.create_oval(
+                cx - 3, cy - 3, cx + 3, cy + 3, fill="#FF6B6B", outline="#FF6B6B"
+            )
 
         # Alpha marker
         ax = margin + (alpha / pm) * pw
         ay = margin + ph - (alpha / pm) * ph
-        canvas.create_oval(ax - 5, ay - 5, ax + 5, ay + 5,
-                           fill="white", outline="white", tags="marker")
+        canvas.create_oval(
+            ax - 5, ay - 5, ax + 5, ay + 5, fill="white", outline="white", tags="marker"
+        )
 
         # Legend
-        canvas.create_oval(margin + 10, margin + 5, margin + 16, margin + 11,
-                           fill="#4A90D9", outline="")
-        canvas.create_text(margin + 22, margin + 8, text="H₀", fill="#AAA",
-                           font=("Helvetica", 9), anchor=tk.W)
-        canvas.create_oval(margin + 10, margin + 20, margin + 16, margin + 26,
-                           fill="#FF6B6B", outline="")
-        canvas.create_text(margin + 22, margin + 23, text="H₁", fill="#AAA",
-                           font=("Helvetica", 9), anchor=tk.W)
+        canvas.create_oval(
+            margin + 10,
+            margin + 5,
+            margin + 16,
+            margin + 11,
+            fill="#4A90D9",
+            outline="",
+        )
+        canvas.create_text(
+            margin + 22,
+            margin + 8,
+            text="H₀",
+            fill="#AAA",
+            font=("Helvetica", 9),
+            anchor=tk.W,
+        )
+        canvas.create_oval(
+            margin + 10,
+            margin + 20,
+            margin + 16,
+            margin + 26,
+            fill="#FF6B6B",
+            outline="",
+        )
+        canvas.create_text(
+            margin + 22,
+            margin + 23,
+            text="H₁",
+            fill="#AAA",
+            font=("Helvetica", 9),
+            anchor=tk.W,
+        )
 
     def _draw_betti_curves(self, canvas, vr, w=400, h=200):
         """Draw Betti curves using canvas (no matplotlib needed)."""
         canvas.delete("all")
         thr, b0v, b1v = vr.betti_curves()
         if len(thr) < 2:
-            canvas.create_text(w // 2, h // 2, text="Need more data",
-                               fill="#888", font=("Helvetica", 11))
+            canvas.create_text(
+                w // 2,
+                h // 2,
+                text="Need more data",
+                fill="#888",
+                font=("Helvetica", 11),
+            )
             return
 
         margin = 35
@@ -483,9 +566,14 @@ class PowerGridTDAExplorer:
             pts_b1.append((x, y))
         if len(pts_b1) > 1:
             for i in range(len(pts_b1) - 1):
-                canvas.create_line(pts_b1[i][0], pts_b1[i][1],
-                                   pts_b1[i + 1][0], pts_b1[i + 1][1],
-                                   fill="#FF6B6B", width=2)
+                canvas.create_line(
+                    pts_b1[i][0],
+                    pts_b1[i][1],
+                    pts_b1[i + 1][0],
+                    pts_b1[i + 1][1],
+                    fill="#FF6B6B",
+                    width=2,
+                )
 
         # Draw β₀ curve
         pts_b0 = []
@@ -494,27 +582,56 @@ class PowerGridTDAExplorer:
             pts_b0.append((x, y))
         if len(pts_b0) > 1:
             for i in range(len(pts_b0) - 1):
-                canvas.create_line(pts_b0[i][0], pts_b0[i][1],
-                                   pts_b0[i + 1][0], pts_b0[i + 1][1],
-                                   fill="#4A90D9", width=2)
+                canvas.create_line(
+                    pts_b0[i][0],
+                    pts_b0[i][1],
+                    pts_b0[i + 1][0],
+                    pts_b0[i + 1][1],
+                    fill="#4A90D9",
+                    width=2,
+                )
 
         # Labels
-        canvas.create_text(w // 2, h - 3, text="Threshold α", fill="#AAA",
-                           font=("Helvetica", 8))
-        canvas.create_text(12, h // 2, text="β", fill="#AAA",
-                           font=("Helvetica", 8))
+        canvas.create_text(
+            w // 2, h - 3, text="Threshold α", fill="#AAA", font=("Helvetica", 8)
+        )
+        canvas.create_text(12, h // 2, text="β", fill="#AAA", font=("Helvetica", 8))
         # Legend
-        canvas.create_line(margin + 10, margin + 5, margin + 25, margin + 5,
-                           fill="#4A90D9", width=2)
-        canvas.create_text(margin + 30, margin + 5, text="β₀", fill="#AAA",
-                           font=("Helvetica", 9), anchor=tk.W)
-        canvas.create_line(margin + 10, margin + 18, margin + 25, margin + 18,
-                           fill="#FF6B6B", width=2)
-        canvas.create_text(margin + 30, margin + 18, text="β₁", fill="#AAA",
-                           font=("Helvetica", 9), anchor=tk.W)
+        canvas.create_line(
+            margin + 10, margin + 5, margin + 25, margin + 5, fill="#4A90D9", width=2
+        )
+        canvas.create_text(
+            margin + 30,
+            margin + 5,
+            text="β₀",
+            fill="#AAA",
+            font=("Helvetica", 9),
+            anchor=tk.W,
+        )
+        canvas.create_line(
+            margin + 10, margin + 18, margin + 25, margin + 18, fill="#FF6B6B", width=2
+        )
+        canvas.create_text(
+            margin + 30,
+            margin + 18,
+            text="β₁",
+            fill="#AAA",
+            font=("Helvetica", 9),
+            anchor=tk.W,
+        )
 
-    def _animate(self, vr_canvas, pd_canvas, bc_canvas,
-                 metric_var, alpha_var, alpha_scale, b0_lbl, b1_lbl, desc_label):
+    def _animate(
+        self,
+        vr_canvas,
+        pd_canvas,
+        bc_canvas,
+        metric_var,
+        alpha_var,
+        alpha_scale,
+        b0_lbl,
+        b1_lbl,
+        desc_label,
+    ):
         """Animate the VR complex growing step by step."""
         if self._current_vr is None:
             return
@@ -540,6 +657,7 @@ class PowerGridTDAExplorer:
         # Use matplotlib if available (it is), else canvas-based
         try:
             import matplotlib
+
             matplotlib.use("TkAgg")
             import matplotlib.pyplot as plt
             from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -563,11 +681,23 @@ class PowerGridTDAExplorer:
                 births_h1 = [b for b, d in h1 if d < 1e10 and b < d - 1e-12]
                 deaths_h1 = [d for b, d in h1 if d < 1e10 and b < d - 1e-12]
 
-                ax.scatter(births_h0, deaths_h0, c="#4A90D9", s=8, alpha=0.7, label="H₀")
-                ax.scatter(births_h1, deaths_h1, c="#FF6B6B", s=8, alpha=0.7, label="H₁")
-                ax.plot([0, max(births_h0 + births_h1 + [1]) * 1.2] if births_h0 + births_h1 else [0, 1],
-                        [0, max(births_h0 + births_h1 + [1]) * 1.2] if births_h0 + births_h1 else [0, 1],
-                        "--", color="#555", linewidth=0.5)
+                ax.scatter(
+                    births_h0, deaths_h0, c="#4A90D9", s=8, alpha=0.7, label="H₀"
+                )
+                ax.scatter(
+                    births_h1, deaths_h1, c="#FF6B6B", s=8, alpha=0.7, label="H₁"
+                )
+                ax.plot(
+                    [0, max(births_h0 + births_h1 + [1]) * 1.2]
+                    if births_h0 + births_h1
+                    else [0, 1],
+                    [0, max(births_h0 + births_h1 + [1]) * 1.2]
+                    if births_h0 + births_h1
+                    else [0, 1],
+                    "--",
+                    color="#555",
+                    linewidth=0.5,
+                )
                 ax.tick_params(colors="#888", labelsize=7)
                 ax.legend(fontsize=7, loc="lower right")
 
@@ -581,116 +711,142 @@ class PowerGridTDAExplorer:
             txt = tk.Text(win, bg="#1E1E2E", fg="#FFF", font=("Courier", 10))
             txt.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-            txt.insert(tk.END, f"{'Metric':<30} {'H₀ pairs':<12} {'H₁ pairs':<12} {'Max dist':<12}\n")
+            txt.insert(
+                tk.END,
+                f"{'Metric':<30} {'H₀ pairs':<12} {'H₁ pairs':<12} {'Max dist':<12}\n",
+            )
             txt.insert(tk.END, "-" * 66 + "\n")
             for name in METRICS:
                 D = self._get_distance_matrix(name)
                 vr = VRComplex(D)
                 h0, h1 = vr.persistence_pairs()
-                txt.insert(tk.END,
+                txt.insert(
+                    tk.END,
                     f"{name:<30} {len(h0):<12} {len([p for p in h1 if p[1] < 1e10]):<12} "
-                    f"{vr.max_distance:<12.4f}\n"
+                    f"{vr.max_distance:<12.4f}\n",
                 )
 
         ttk.Button(win, text="Close", command=win.destroy).pack(pady=5)
 
     def _compare_metrics_vulnerability(self):
-            """Compare all metrics' alignment with N-1 contingency analysis."""
-            grid_data = self.data.get("grid_data", None)
-            if grid_data is None:
-                messagebox.showerror("Error",
-                    "No grid data available. Please import a power grid first.")
-                return
-    
-            # Compute all distance matrices
-            from tda.vulnerability import compare_metrics_vulnerability
-    
-            distance_matrices = {}
-            try:
-                for name in METRICS:
-                    D = self._get_distance_matrix(name)
-                    distance_matrices[name] = D
-            except Exception as e:
-                messagebox.showerror("Error",
-                    f"Failed to compute distance matrices:\n{e}")
-                return
-    
-            # Run comparison
-            try:
-                comparison = compare_metrics_vulnerability(grid_data, distance_matrices)
-            except Exception as e:
-                messagebox.showerror("Analysis Error",
-                    f"Metrics vs N-1 comparison failed:\n{e}")
-                return
-    
-            # Show results
-            self._show_metrics_vulnerability_window(comparison)
-    
-        def _show_metrics_vulnerability_window(self, comparison: dict):
-            """Display the metrics vs N-1 comparison results."""
-            win = tk.Toplevel(self.win)
-            win.title("Metrics vs N-1 — Alignment Comparison")
-            win.geometry("950x700")
-            win.configure(bg="#1E1E2E")
-    
-            # Title
-            title = ttk.Label(win, text="Distance Metrics vs N-1 Contingency Analysis",
-                              font=("Helvetica", 14, "bold"),
-                              foreground="#FFD700", background="#1E1E2E")
-            title.pack(pady=(10, 5))
-    
-            # Summary bar
-            info_frame = ttk.Frame(win)
-            info_frame.pack(fill=tk.X, padx=20, pady=5)
-    
-            n_bus = comparison["n_bus"]
-            n_line = comparison["n_line"]
-            n_vuln = len(comparison["n1_vulnerable"])
-            summary_text = (
-                f"Buses: {n_bus}  |  Lines: {n_line}  |  "
-                f"N-1 Vulnerable: {n_vuln}/{n_line}  |  "
-                f"Metrics Compared: {len(comparison['metrics'])}"
+        """Compare all metrics' alignment with N-1 contingency analysis."""
+        grid_data = self.data.get("grid_data", None)
+        if grid_data is None:
+            messagebox.showerror(
+                "Error", "No grid data available. Please import a power grid first."
             )
-            ttk.Label(info_frame, text=summary_text,
-                      foreground="#CCCCCC", background="#1E1E2E").pack()
-    
-            # Ranking table using Treeview
-            table_frame = ttk.LabelFrame(win, text="Metric Ranking by Alignment Score")
-            table_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-    
-            columns = ("rank", "metric", "alignment", "precision", "recall",
-                       "specificity", "h1_edges", "intersection")
-            tree = ttk.Treeview(table_frame, columns=columns, show="headings",
-                                height=12, selectmode="browse")
-            tree.heading("rank", text="#")
-            tree.heading("metric", text="Metric")
-            tree.heading("alignment", text="Alignment")
-            tree.heading("precision", text="Precision")
-            tree.heading("recall", text="Recall")
-            tree.heading("specificity", text="Specificity")
-            tree.heading("h1_edges", text="H1 Edges")
-            tree.heading("intersection", text="Intersection")
-    
-            tree.column("rank", width=30, anchor=tk.CENTER)
-            tree.column("metric", width=220, anchor=tk.W)
-            tree.column("alignment", width=100, anchor=tk.CENTER)
-            tree.column("precision", width=100, anchor=tk.CENTER)
-            tree.column("recall", width=100, anchor=tk.CENTER)
-            tree.column("specificity", width=100, anchor=tk.CENTER)
-            tree.column("h1_edges", width=80, anchor=tk.CENTER)
-            tree.column("intersection", width=100, anchor=tk.CENTER)
-    
-            scroll = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=tree.yview)
-            tree.configure(yscrollcommand=scroll.set)
-            scroll.pack(side=tk.RIGHT, fill=tk.Y)
-            tree.pack(fill=tk.BOTH, expand=True)
-    
-            best_alignment = 0.0
-            best_name = ""
-    
-            for rank, name in enumerate(comparison["metrics"], 1):
-                r = comparison["results"][name]
-                tree.insert("", tk.END, values=(
+            return
+
+        # Compute all distance matrices
+        from tda.vulnerability import compare_metrics_vulnerability
+
+        distance_matrices = {}
+        try:
+            for name in METRICS:
+                D = self._get_distance_matrix(name)
+                distance_matrices[name] = D
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to compute distance matrices:\n{e}")
+            return
+
+        # Run comparison
+        try:
+            comparison = compare_metrics_vulnerability(grid_data, distance_matrices)
+        except Exception as e:
+            messagebox.showerror(
+                "Analysis Error", f"Metrics vs N-1 comparison failed:\n{e}"
+            )
+            return
+
+        # Show results
+        self._show_metrics_vulnerability_window(comparison)
+
+    def _show_metrics_vulnerability_window(self, comparison: dict):
+        """Display the metrics vs N-1 comparison results."""
+        win = tk.Toplevel(self.win)
+        win.title("Metrics vs N-1 — Alignment Comparison")
+        win.geometry("950x700")
+        win.configure(bg="#1E1E2E")
+
+        # Title
+        title = ttk.Label(
+            win,
+            text="Distance Metrics vs N-1 Contingency Analysis",
+            font=("Helvetica", 14, "bold"),
+            foreground="#FFD700",
+            background="#1E1E2E",
+        )
+        title.pack(pady=(10, 5))
+
+        # Summary bar
+        info_frame = ttk.Frame(win)
+        info_frame.pack(fill=tk.X, padx=20, pady=5)
+
+        n_bus = comparison["n_bus"]
+        n_line = comparison["n_line"]
+        n_vuln = len(comparison["n1_vulnerable"])
+        summary_text = (
+            f"Buses: {n_bus}  |  Lines: {n_line}  |  "
+            f"N-1 Vulnerable: {n_vuln}/{n_line}  |  "
+            f"Metrics Compared: {len(comparison['metrics'])}"
+        )
+        ttk.Label(
+            info_frame, text=summary_text, foreground="#CCCCCC", background="#1E1E2E"
+        ).pack()
+
+        # Ranking table using Treeview
+        table_frame = ttk.LabelFrame(win, text="Metric Ranking by Alignment Score")
+        table_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+
+        columns = (
+            "rank",
+            "metric",
+            "alignment",
+            "precision",
+            "recall",
+            "specificity",
+            "h1_edges",
+            "intersection",
+        )
+        tree = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            height=12,
+            selectmode="browse",
+        )
+        tree.heading("rank", text="#")
+        tree.heading("metric", text="Metric")
+        tree.heading("alignment", text="Alignment")
+        tree.heading("precision", text="Precision")
+        tree.heading("recall", text="Recall")
+        tree.heading("specificity", text="Specificity")
+        tree.heading("h1_edges", text="H1 Edges")
+        tree.heading("intersection", text="Intersection")
+
+        tree.column("rank", width=30, anchor=tk.CENTER)
+        tree.column("metric", width=220, anchor=tk.W)
+        tree.column("alignment", width=100, anchor=tk.CENTER)
+        tree.column("precision", width=100, anchor=tk.CENTER)
+        tree.column("recall", width=100, anchor=tk.CENTER)
+        tree.column("specificity", width=100, anchor=tk.CENTER)
+        tree.column("h1_edges", width=80, anchor=tk.CENTER)
+        tree.column("intersection", width=100, anchor=tk.CENTER)
+
+        scroll = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=scroll.set)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        tree.pack(fill=tk.BOTH, expand=True)
+
+        best_alignment = 0.0
+        best_name = ""
+
+        for rank, name in enumerate(comparison["metrics"], 1):
+            r = comparison["results"][name]
+            tree.insert(
+                "",
+                tk.END,
+                values=(
                     f"#{rank}",
                     name,
                     f"{r['alignment_score']:.4f}",
@@ -699,75 +855,90 @@ class PowerGridTDAExplorer:
                     f"{r['specificity']:.4f}",
                     r["n_cycle_edges"],
                     r["n_intersection"],
-                ), tags=("top" if rank <= 3 else "normal",))
-    
-                if r["alignment_score"] > best_alignment:
-                    best_alignment = r["alignment_score"]
-                    best_name = name
-    
-            tree.tag_configure("top", foreground="#FFD700")
-            tree.tag_configure("normal", foreground="#CCCCCC")
-    
-            # Best metric highlight
-            best_frame = ttk.LabelFrame(win, text="★ Best Performing Metric")
-            best_frame.pack(fill=tk.X, padx=20, pady=5)
-    
-            best_result = comparison["results"][best_name]
-            best_text = (
-                f"Best: {best_name}  "
-                f"(Alignment: {best_result['alignment_score']:.4f}, "
-                f"Precision: {best_result['precision']:.4f}, "
-                f"Recall: {best_result['recall']:.4f})"
+                ),
+                tags=("top" if rank <= 3 else "normal",),
             )
-            ttk.Label(best_frame, text=best_text,
-                      foreground="#44BB44", background="#1E1E2E",
-                      font=("Helvetica", 11, "bold")).pack(padx=10, pady=8)
-    
-            # N-1 Vulnerable edges
-            vuln_frame = ttk.LabelFrame(win, text="N-1 Vulnerable Edges")
-            vuln_frame.pack(fill=tk.X, padx=20, pady=5)
-    
-            vuln_text = ", ".join(
+
+            if r["alignment_score"] > best_alignment:
+                best_alignment = r["alignment_score"]
+                best_name = name
+
+        tree.tag_configure("top", foreground="#FFD700")
+        tree.tag_configure("normal", foreground="#CCCCCC")
+
+        # Best metric highlight
+        best_frame = ttk.LabelFrame(win, text="★ Best Performing Metric")
+        best_frame.pack(fill=tk.X, padx=20, pady=5)
+
+        best_result = comparison["results"][best_name]
+        best_text = (
+            f"Best: {best_name}  "
+            f"(Alignment: {best_result['alignment_score']:.4f}, "
+            f"Precision: {best_result['precision']:.4f}, "
+            f"Recall: {best_result['recall']:.4f})"
+        )
+        ttk.Label(
+            best_frame,
+            text=best_text,
+            foreground="#44BB44",
+            background="#1E1E2E",
+            font=("Helvetica", 11, "bold"),
+        ).pack(padx=10, pady=8)
+
+        # N-1 Vulnerable edges
+        vuln_frame = ttk.LabelFrame(win, text="N-1 Vulnerable Edges")
+        vuln_frame.pack(fill=tk.X, padx=20, pady=5)
+
+        vuln_text = (
+            ", ".join(
                 f"L{e['id']}({e['name']})"
                 for e in comparison.get("n1_vulnerable_details", [])
-            ) or "None"
-            ttk.Label(vuln_frame, text=vuln_text,
-                      foreground="#FF6B6B", background="#1E1E2E",
-                      wraplength=800, justify=tk.LEFT).pack(padx=10, pady=8)
-    
-            # Close button
-            ttk.Button(win, text="Close", command=win.destroy).pack(pady=10)
-    
-        def _vulnerability_analysis(self):
-            """Run N-1 contingency-based vulnerability analysis and homology comparison."""
-            if self._current_D is None:
-                messagebox.showwarning("No Data", "Compute VR first by selecting a metric.")
-                return
-    
-            metric_name = self._metric_var.get()
-            D = self._current_D
-    
-            # Get grid_data from electrical data (added by GridGraphConverter)
-            grid_data = self.data.get("grid_data", None)
-            if grid_data is None:
-                messagebox.showerror("Error",
-                    "No grid data available. Please import a power grid first.")
-                return
-    
-            # Run N-1 contingency + homology comparison
-            try:
-                result = compare_with_homology(grid_data, D)
-            except Exception as e:
-                messagebox.showerror("Analysis Error",
-                    f"Vulnerability analysis failed:\n{e}")
-                return
-    
-            # Show results window
-            self._show_vulnerability_window(result, metric_name)
-    
-            # Color VR nodes by vulnerability + cycle membership
-            self._color_vr_nodes_by_vulnerability(
-                self._vr_canvas, grid_data, result)
+            )
+            or "None"
+        )
+        ttk.Label(
+            vuln_frame,
+            text=vuln_text,
+            foreground="#FF6B6B",
+            background="#1E1E2E",
+            wraplength=800,
+            justify=tk.LEFT,
+        ).pack(padx=10, pady=8)
+
+        # Close button
+        ttk.Button(win, text="Close", command=win.destroy).pack(pady=10)
+
+    def _vulnerability_analysis(self):
+        """Run N-1 contingency-based vulnerability analysis and homology comparison."""
+        if self._current_D is None:
+            messagebox.showwarning("No Data", "Compute VR first by selecting a metric.")
+            return
+
+        metric_name = self._metric_var.get()
+        D = self._current_D
+
+        # Get grid_data from electrical data (added by GridGraphConverter)
+        grid_data = self.data.get("grid_data", None)
+        if grid_data is None:
+            messagebox.showerror(
+                "Error", "No grid data available. Please import a power grid first."
+            )
+            return
+
+        # Run N-1 contingency + homology comparison
+        try:
+            result = compare_with_homology(grid_data, D)
+        except Exception as e:
+            messagebox.showerror(
+                "Analysis Error", f"Vulnerability analysis failed:\n{e}"
+            )
+            return
+
+        # Show results window
+        self._show_vulnerability_window(result, metric_name)
+
+        # Color VR nodes by vulnerability + cycle membership
+        self._color_vr_nodes_by_vulnerability(self._vr_canvas, grid_data, result)
 
     def _show_vulnerability_window(self, result: dict, metric_name: str):
         """Display N-1 contingency + homology comparison results."""
@@ -777,9 +948,13 @@ class PowerGridTDAExplorer:
         win.configure(bg="#1E1E2E")
 
         # Title
-        title = ttk.Label(win, text="N-1 Contingency + Homology Comparison",
-                          font=("Helvetica", 14, "bold"),
-                          foreground="#FF6B6B", background="#1E1E2E")
+        title = ttk.Label(
+            win,
+            text="N-1 Contingency + Homology Comparison",
+            font=("Helvetica", 14, "bold"),
+            foreground="#FF6B6B",
+            background="#1E1E2E",
+        )
         title.pack(pady=(10, 5))
 
         # Summary bar
@@ -791,14 +966,17 @@ class PowerGridTDAExplorer:
             f"Buses: {result['n_bus']}  |  "
             f"Lines: {result['n_line']}  |  "
             f"N-1 Vulnerable: {result['n_vulnerable']}/{result['n_line']} "
-            f"({result['n1_analysis']['vulnerability_ratio']*100:.1f}%)  |  "
+            f"({result['n1_analysis']['vulnerability_ratio'] * 100:.1f}%)  |  "
             f"H1 Cycle Edges: {result['n_cycle_edges']}"
         )
-        ttk.Label(info_frame, text=summary_text,
-                  foreground="#CCCCCC", background="#1E1E2E").pack()
+        ttk.Label(
+            info_frame, text=summary_text, foreground="#CCCCCC", background="#1E1E2E"
+        ).pack()
 
         # Alignment Score
-        alignment_frame = ttk.LabelFrame(win, text="Alignment: Homology vs N-1 AC Analysis")
+        alignment_frame = ttk.LabelFrame(
+            win, text="Alignment: Homology vs N-1 AC Analysis"
+        )
         alignment_frame.pack(fill=tk.X, padx=20, pady=5)
 
         align = result["alignment_score"]
@@ -813,17 +991,26 @@ class PowerGridTDAExplorer:
             f"Recall: {rec:.4f}  |  "
             f"Specificity: {spec:.4f}"
         )
-        ttk.Label(alignment_frame, text=align_text,
-                  foreground="#FFD700", background="#1E1E2E",
-                  font=("Helvetica", 11)).pack(padx=10, pady=8)
+        ttk.Label(
+            alignment_frame,
+            text=align_text,
+            foreground="#FFD700",
+            background="#1E1E2E",
+            font=("Helvetica", 11),
+        ).pack(padx=10, pady=8)
 
         # Vulnerable Edges (N-1) Table
         vuln_frame = ttk.LabelFrame(win, text="N-1 Vulnerable Edges (AC Power Flow)")
         vuln_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
 
         vuln_columns = ("id", "name", "violations")
-        vuln_tree = ttk.Treeview(vuln_frame, columns=vuln_columns, show="headings",
-                                 height=6, selectmode="browse")
+        vuln_tree = ttk.Treeview(
+            vuln_frame,
+            columns=vuln_columns,
+            show="headings",
+            height=6,
+            selectmode="browse",
+        )
         vuln_tree.heading("id", text="Line ID")
         vuln_tree.heading("name", text="Name")
         vuln_tree.heading("violations", text="Violations")
@@ -831,16 +1018,21 @@ class PowerGridTDAExplorer:
         vuln_tree.column("name", width=120, anchor=tk.W)
         vuln_tree.column("violations", width=200, anchor=tk.W)
 
-        vuln_scroll = ttk.Scrollbar(vuln_frame, orient=tk.VERTICAL, command=vuln_tree.yview)
+        vuln_scroll = ttk.Scrollbar(
+            vuln_frame, orient=tk.VERTICAL, command=vuln_tree.yview
+        )
         vuln_tree.configure(yscrollcommand=vuln_scroll.set)
         vuln_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         vuln_tree.pack(fill=tk.BOTH, expand=True)
 
         for edge in n1.get("vulnerable_edges_detail", []):
             violations_str = ", ".join(edge["violations"])
-            vuln_tree.insert("", tk.END,
-                             values=(edge["id"], edge["name"], violations_str),
-                             tags=("vuln",))
+            vuln_tree.insert(
+                "",
+                tk.END,
+                values=(edge["id"], edge["name"], violations_str),
+                tags=("vuln",),
+            )
 
         vuln_tree.tag_configure("vuln", foreground="#FF6B6B")
 
@@ -849,8 +1041,13 @@ class PowerGridTDAExplorer:
         cycle_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
 
         cycle_columns = ("id", "name", "in_vulnerable")
-        cycle_tree = ttk.Treeview(cycle_frame, columns=cycle_columns, show="headings",
-                                  height=6, selectmode="browse")
+        cycle_tree = ttk.Treeview(
+            cycle_frame,
+            columns=cycle_columns,
+            show="headings",
+            height=6,
+            selectmode="browse",
+        )
         cycle_tree.heading("id", text="Line ID")
         cycle_tree.heading("name", text="Name")
         cycle_tree.heading("in_vulnerable", text="In N-1 Vulnerable?")
@@ -858,7 +1055,9 @@ class PowerGridTDAExplorer:
         cycle_tree.column("name", width=120, anchor=tk.W)
         cycle_tree.column("in_vulnerable", width=140, anchor=tk.CENTER)
 
-        cycle_scroll = ttk.Scrollbar(cycle_frame, orient=tk.VERTICAL, command=cycle_tree.yview)
+        cycle_scroll = ttk.Scrollbar(
+            cycle_frame, orient=tk.VERTICAL, command=cycle_tree.yview
+        )
         cycle_tree.configure(yscrollcommand=cycle_scroll.set)
         cycle_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         cycle_tree.pack(fill=tk.BOTH, expand=True)
@@ -873,9 +1072,12 @@ class PowerGridTDAExplorer:
             is_vuln = cid in result["vulnerable_edge_ids"]
             in_vuln_str = "YES" if is_vuln else "No"
             tag = "match" if is_vuln else "nomatch"
-            cycle_tree.insert("", tk.END,
-                              values=(cid, line_names.get(cid, f"L{cid}"), in_vuln_str),
-                              tags=(tag,))
+            cycle_tree.insert(
+                "",
+                tk.END,
+                values=(cid, line_names.get(cid, f"L{cid}"), in_vuln_str),
+                tags=(tag,),
+            )
 
         cycle_tree.tag_configure("match", foreground="#44BB44")
         cycle_tree.tag_configure("nomatch", foreground="#FFAA00")
@@ -897,8 +1099,9 @@ class PowerGridTDAExplorer:
                 f"Persistent H1: {h1_persistent}  |  "
                 f"Max distance: {max_d:.4f}"
             )
-            ttk.Label(homo_frame, text=homo_text,
-                      foreground="#CCCCCC", background="#1E1E2E").pack(padx=10, pady=5)
+            ttk.Label(
+                homo_frame, text=homo_text, foreground="#CCCCCC", background="#1E1E2E"
+            ).pack(padx=10, pady=5)
 
         # Interpretation
         interp_frame = ttk.LabelFrame(win, text="Interpretation")
@@ -915,11 +1118,11 @@ class PowerGridTDAExplorer:
             )
             interp_lines.append(
                 f"* Alignment score = {align:.4f}: homology cycle edges match "
-                f"N-1 vulnerable edges at {align*100:.1f}% of total edges."
+                f"N-1 vulnerable edges at {align * 100:.1f}% of total edges."
             )
             if prec > 0.5:
                 interp_lines.append(
-                    f"* Precision = {prec:.4f}: {prec*100:.1f}% of cycle edges are "
+                    f"* Precision = {prec:.4f}: {prec * 100:.1f}% of cycle edges are "
                     f"actually N-1 vulnerable."
                 )
         else:
@@ -929,9 +1132,14 @@ class PowerGridTDAExplorer:
             )
 
         interp_text = "\n".join(interp_lines)
-        ttk.Label(interp_frame, text=interp_text,
-                  foreground="#CCCCCC", background="#1E1E2E",
-                  wraplength=700, justify=tk.LEFT).pack(padx=10, pady=10)
+        ttk.Label(
+            interp_frame,
+            text=interp_text,
+            foreground="#CCCCCC",
+            background="#1E1E2E",
+            wraplength=700,
+            justify=tk.LEFT,
+        ).pack(padx=10, pady=10)
 
         # Close button
         ttk.Button(win, text="Close", command=win.destroy).pack(pady=10)
@@ -982,9 +1190,21 @@ class PowerGridTDAExplorer:
             else:
                 color = "#44BB44"  # Green - neither
 
-            canvas.create_oval(sx - r, sy - r, sx + r, sy + r,
-                               fill=color, outline="white", width=2,
-                               tags=("vuln_node",))
-            canvas.create_text(sx, sy, text=str(i),
-                               fill="white", font=("Helvetica", 9, "bold"),
-                               tags=("vuln_label",))
+            canvas.create_oval(
+                sx - r,
+                sy - r,
+                sx + r,
+                sy + r,
+                fill=color,
+                outline="white",
+                width=2,
+                tags=("vuln_node",),
+            )
+            canvas.create_text(
+                sx,
+                sy,
+                text=str(i),
+                fill="white",
+                font=("Helvetica", 9, "bold"),
+                tags=("vuln_label",),
+            )
