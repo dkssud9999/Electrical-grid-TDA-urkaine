@@ -243,6 +243,7 @@ def run_experiment(
             "n_h1": h.get("n_h1", 0),
             "n_h1_persistent": h.get("n_h1_persistent", 0),
             "max_distance": h.get("max_distance", 0),
+                "persistence_cycles": r.get("cycles_detail", []),
         }
 
     return result

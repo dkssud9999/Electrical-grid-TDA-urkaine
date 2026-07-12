@@ -491,6 +491,8 @@ def analyze_grid_vulnerability(grid_data: dict, **kwargs) -> dict:
 def get_cycle_edges_from_vr(
     distance_matrix: NDArray,
     bus_pairs: list[tuple[int, int]],
+    top_k: int | None = 1,
+    min_persistence_ratio: float = 0.0,
 ) -> set[tuple[int, int]]:
     """Extract edges that belong to H1 cycles from persistence homology.
 
@@ -499,11 +501,13 @@ def get_cycle_edges_from_vr(
     vulnerability detection.
 
     The algorithm:
-      1. For each persistent H1 pair (birth, death):
+      1. Sort H1 pairs by persistence (death - birth) descending
+      2. Take the top K most persistent pairs (or all if top_k=None)
+      3. For each selected pair:
          a. Build the graph at threshold = birth + epsilon
          b. Find the 2-core (vertices with degree >= 2)
          c. Remove bridges from the 2-core to find actual cycle edges
-      2. Intersect cycle edges with the grid's bus_pairs topology
+      4. Intersect cycle edges with the grid's bus_pairs topology
 
     Parameters
     ----------
@@ -511,6 +515,14 @@ def get_cycle_edges_from_vr(
         Electrical distance matrix.
     bus_pairs : list of (int, int)
         Grid line connections.
+    top_k : int or None, default None
+        Only use the top K most persistent H1 cycles.
+        If None, use all persistent H1 pairs (old behavior).
+        If 1 (recommended), only the single most persistent cycle.
+    min_persistence_ratio : float, default 0.0
+        Minimum persistence ratio (death-birth)/max_persistence to qualify.
+        Only cycles with persistence >= this ratio are considered.
+        0.0 = any, 0.5 = only top half, etc.
 
     Returns
     -------
@@ -535,13 +547,44 @@ def get_cycle_edges_from_vr(
         grid_adj[f].add(t)
         grid_adj[t].add(f)
 
+    # ── Filter H1 pairs by persistence ─────────────────────────────
+    # Sort by persistence (death - birth) descending
+    persistent_pairs = [
+        (b, d)
+        for b, d in h1_pairs
+        if d < infinity  # skip essential (infinite) cycles
+    ]
+
+    if not persistent_pairs:
+        return set()
+
+    # Sort by persistence descending
+    persistent_pairs.sort(key=lambda x: -(x[1] - x[0]))
+
+    # Apply min_persistence_ratio filter
+    if min_persistence_ratio > 0.0:
+        max_persistence = persistent_pairs[0][1] - persistent_pairs[0][0]
+        threshold_persistence = max_persistence * min_persistence_ratio
+        persistent_pairs = [
+            (b, d) for b, d in persistent_pairs
+            if (d - b) >= threshold_persistence
+        ]
+
+    # Apply top_k filter
+    if top_k is not None and top_k > 0:
+        # Only count non-zero persistence pairs for top_k ranking
+        nonzero_pairs = [(b, d) for b, d in persistent_pairs if d - b > 1e-12]
+        if nonzero_pairs:
+            # Take top_k from non-zero persistence pairs
+            nonzero_pairs.sort(key=lambda x: -(x[1] - x[0]))
+            selected = set(nonzero_pairs[:top_k])
+            persistent_pairs = [p for p in persistent_pairs if p in selected]
+        else:
+            persistent_pairs = []
+
     cycle_edges = set()
 
-    for birth, death in h1_pairs:
-        # Skip infinite persistence (essential cycles)
-        if death >= infinity:
-            continue
-
+    for birth, death in persistent_pairs:
         # Use threshold at birth + small epsilon
         threshold = birth + 1e-10
 
