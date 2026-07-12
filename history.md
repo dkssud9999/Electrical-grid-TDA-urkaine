@@ -1,3 +1,46 @@
+## 2026-07-12 17:40 — 테스트 확장 (GridGraphConverter, UkrainaLoader, PTDF edge cases) + 버그 수정 + __pycache__ 정리
+
+### 수행 작업
+1. **test_grid_to_graph.py 생성** (`tests/test_grid_to_graph.py`, 497라인)
+   - GridGraphConverter 단위 테스트: 초기화, 속성, 빈 그리드, layout, add_to_editor
+   - 엣지 케이스: 빈 그리드, 단일 버스, 단일 라인, 중복 라인, 모든 좌표 0
+
+2. **test_ukraine_loader.py 생성** (`tests/test_ukraine_loader.py`, 311라인)
+   - 우크라이나 18-bus / 28-bus 데이터 검증 테스트 15개
+   - 구조 검증 (버스 수, 라인 수, 발전기/부하), 전기 파라미터 범위, PTDF/LODF 계산 가능성, N-1 contingency 분석
+   - 엣지 케이스: 빈 그리드, 단일 버스, 단일 라인
+
+3. **test_ptdf_calculator.py 엣지 케이스 추가** (145라인, 12개 테스트)
+   - 단일 라인, 병렬 라인, 0 susceptance, disconnected bus, 1-bus, 2-bus, star topology bridge line, zero impedance, self-loop, negative susceptance, duplicate bus pair, LODF diagonal
+
+4. **grid_to_graph.py 들여쓰기 버그 수정**
+   - `add_to_editor()` 메서드 내 `# Handle empty grid` 주석의 과도한 들여쓰기(16-space → 8-space) 수정
+   - 빈 그리드 처리 로직 추가 (buses가 비어있으면 early return)
+
+5. **__pycache__ git 추적 제거**
+   - `.gitignore`에 `__pycache__/`가 있으나 기존에 추적 중이던 7개 pyc 파일 추적 제거
+
+6. **TODO.md 긴급 이슈 노트 추가**
+   - "모든 선로가 전부 취약점으로 뜸" 문제 기록 — 임계전류값 조건이 너무 빡빡한 것으로 추정
+
+7. **Git remote URL 업데이트**
+   - `origin` URL을 `https://github.com/dkssud9999/Electrical-grid-TDA-ukraine.git`로 변경
+
+### Test Results
+```
+170 passed in 0.28s
+```
+
+### Git
+- Commit `d402f38`: feat: 테스트 확장 — GridGraphConverter, UkrainaLoader, PTDF edge cases + __pycache__ 정리
+- Push to origin/main ✅
+
+### Notes
+- 총 테스트 170개로 확장 (기존 82 → 170)
+- 긴급 이슈: 모든 선로가 N-1 취약점으로 분류됨 — 임계전류값(rate) 조건 재검토 필요
+- 이슈는 TODO.md에 기록됨
+
+---
 ## 2026-07-12 17:30 — P2 완료: CLI 실험 도구 + Metrics vs N-1 GUI 통합
 
 ### 수행 작업
