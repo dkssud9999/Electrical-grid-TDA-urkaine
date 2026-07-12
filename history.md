@@ -1,3 +1,44 @@
+## 2026-07-12 17:30 — P2 완료: CLI 실험 도구 + Metrics vs N-1 GUI 통합
+
+### 수행 작업
+1. **P2: 실험 자동화 CLI 도구** (`scripts/compare_metrics.py`)
+   - 우크라이나 18-bus / 28-bus 지원
+   - 8개 거리 메트릭 자동 계산 → N-1 취약점 분석 → homology alignment 비교
+   - alignment score 기준 메트릭 랭킹 출력 + JSON/CSV export
+   - Ukraine 18-bus 테스트 완료: 8개 메트릭, 0.01s 계산, 18.87s homology (alignment 0.9600, PTDF Vector L2 최고)
+
+2. **P2: Metrics vs N-1 GUI 통합** (`integration/power_grid_tda.py`)
+   - "📊 Metrics vs N-1" 버튼 추가 (Animate, Compare 버튼 옆)
+   - `_compare_metrics_vulnerability()`: 모든 메트릭 거리 행렬 계산 → `compare_metrics_vulnerability()` 호출
+   - `_show_metrics_vulnerability_window()`: Treeview 테이블 + Best Metric 하이라이트
+   - 기존 `_vulnerability_analysis()` 들여쓰기 버그 수정 (12-space → 8-space)
+
+3. **P3: 문서 최신화**
+   - README.md: CLI 도구, Metrics vs N-1, N-1 기준, AC power flow 문서화
+   - TODO.md: P2 완료 표기, P3 연구 결과 대기 항목 정리
+   - unsolved issues.txt: P2/P3 해결 표기, 미해결 이슈 정리
+
+### Test Results
+```
+82 passed in 0.14s
+```
+
+### Git
+- Commit `60c45e3`: P2 완료 — CLI 실험 도구 + Metrics vs N-1 GUI 통합 + 문서 최신화
+- Push to origin/main ✅
+
+### Resolved Issues (from unsolved issues.txt)
+- ✅ P2: CLI 실험 자동화 도구 (scripts/compare_metrics.py)
+- ✅ P2: compare_metrics_vulnerability GUI 통합
+- ✅ P3: README.md 최신화
+
+### Notes
+- Ukraine 18-bus에서 모든 라인이 N-1 취약한 것으로 나옴 (25/25, 100%)
+  - 이는 테스트 그리드의 모든 라인이 정격용량 대비 과부하 상태이기 때문일 수 있음
+  - 실제 데이터로 검증 필요
+- 연구팀 회의 결과 대기 중인 P3 항목 (지속성 호몰로지-취약점 매핑 방식) 있음
+
+---
 ## 2026-07-12 15:30 — Commit & Push 완료 + __pycache__ git 추적 제거
 
 ### 수행 작업
