@@ -258,7 +258,9 @@ class PowerGridTDAExplorer:
                                                   b0_lbl, b1_lbl, desc_label)).pack(side=tk.RIGHT, padx=5)
         ttk.Button(slider_frame, text="📊 Compare All Metrics",
                    command=lambda: self._compare_metrics()).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(slider_frame, text="⚠ 취약점 분석",
+        ttk.Button(slider_frame, text="📊 Metrics vs N-1",
+                           command=self._compare_metrics_vulnerability).pack(side=tk.RIGHT, padx=5)
+                ttk.Button(slider_frame, text="⚠ 취약점 분석",
                    command=self._vulnerability_analysis).pack(side=tk.RIGHT, padx=5)
 
         # State
@@ -592,7 +594,151 @@ class PowerGridTDAExplorer:
 
         ttk.Button(win, text="Close", command=win.destroy).pack(pady=5)
 
-    def _vulnerability_analysis(self):
+    def _compare_metrics_vulnerability(self):
+            """Compare all metrics' alignment with N-1 contingency analysis."""
+            grid_data = self.data.get("grid_data", None)
+            if grid_data is None:
+                messagebox.showerror("Error",
+                    "No grid data available. Please import a power grid first.")
+                return
+    
+            # Compute all distance matrices
+            from tda.vulnerability import compare_metrics_vulnerability
+    
+            distance_matrices = {}
+            try:
+                for name in METRICS:
+                    D = self._get_distance_matrix(name)
+                    distance_matrices[name] = D
+            except Exception as e:
+                messagebox.showerror("Error",
+                    f"Failed to compute distance matrices:\n{e}")
+                return
+    
+            # Run comparison
+            try:
+                comparison = compare_metrics_vulnerability(grid_data, distance_matrices)
+            except Exception as e:
+                messagebox.showerror("Analysis Error",
+                    f"Metrics vs N-1 comparison failed:\n{e}")
+                return
+    
+            # Show results
+            self._show_metrics_vulnerability_window(comparison)
+    
+        def _show_metrics_vulnerability_window(self, comparison: dict):
+            """Display the metrics vs N-1 comparison results."""
+            win = tk.Toplevel(self.win)
+            win.title("Metrics vs N-1 — Alignment Comparison")
+            win.geometry("950x700")
+            win.configure(bg="#1E1E2E")
+    
+            # Title
+            title = ttk.Label(win, text="Distance Metrics vs N-1 Contingency Analysis",
+                              font=("Helvetica", 14, "bold"),
+                              foreground="#FFD700", background="#1E1E2E")
+            title.pack(pady=(10, 5))
+    
+            # Summary bar
+            info_frame = ttk.Frame(win)
+            info_frame.pack(fill=tk.X, padx=20, pady=5)
+    
+            n_bus = comparison["n_bus"]
+            n_line = comparison["n_line"]
+            n_vuln = len(comparison["n1_vulnerable"])
+            summary_text = (
+                f"Buses: {n_bus}  |  Lines: {n_line}  |  "
+                f"N-1 Vulnerable: {n_vuln}/{n_line}  |  "
+                f"Metrics Compared: {len(comparison['metrics'])}"
+            )
+            ttk.Label(info_frame, text=summary_text,
+                      foreground="#CCCCCC", background="#1E1E2E").pack()
+    
+            # Ranking table using Treeview
+            table_frame = ttk.LabelFrame(win, text="Metric Ranking by Alignment Score")
+            table_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+    
+            columns = ("rank", "metric", "alignment", "precision", "recall",
+                       "specificity", "h1_edges", "intersection")
+            tree = ttk.Treeview(table_frame, columns=columns, show="headings",
+                                height=12, selectmode="browse")
+            tree.heading("rank", text="#")
+            tree.heading("metric", text="Metric")
+            tree.heading("alignment", text="Alignment")
+            tree.heading("precision", text="Precision")
+            tree.heading("recall", text="Recall")
+            tree.heading("specificity", text="Specificity")
+            tree.heading("h1_edges", text="H1 Edges")
+            tree.heading("intersection", text="Intersection")
+    
+            tree.column("rank", width=30, anchor=tk.CENTER)
+            tree.column("metric", width=220, anchor=tk.W)
+            tree.column("alignment", width=100, anchor=tk.CENTER)
+            tree.column("precision", width=100, anchor=tk.CENTER)
+            tree.column("recall", width=100, anchor=tk.CENTER)
+            tree.column("specificity", width=100, anchor=tk.CENTER)
+            tree.column("h1_edges", width=80, anchor=tk.CENTER)
+            tree.column("intersection", width=100, anchor=tk.CENTER)
+    
+            scroll = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=tree.yview)
+            tree.configure(yscrollcommand=scroll.set)
+            scroll.pack(side=tk.RIGHT, fill=tk.Y)
+            tree.pack(fill=tk.BOTH, expand=True)
+    
+            best_alignment = 0.0
+            best_name = ""
+    
+            for rank, name in enumerate(comparison["metrics"], 1):
+                r = comparison["results"][name]
+                tree.insert("", tk.END, values=(
+                    f"#{rank}",
+                    name,
+                    f"{r['alignment_score']:.4f}",
+                    f"{r['precision']:.4f}",
+                    f"{r['recall']:.4f}",
+                    f"{r['specificity']:.4f}",
+                    r["n_cycle_edges"],
+                    r["n_intersection"],
+                ), tags=("top" if rank <= 3 else "normal",))
+    
+                if r["alignment_score"] > best_alignment:
+                    best_alignment = r["alignment_score"]
+                    best_name = name
+    
+            tree.tag_configure("top", foreground="#FFD700")
+            tree.tag_configure("normal", foreground="#CCCCCC")
+    
+            # Best metric highlight
+            best_frame = ttk.LabelFrame(win, text="★ Best Performing Metric")
+            best_frame.pack(fill=tk.X, padx=20, pady=5)
+    
+            best_result = comparison["results"][best_name]
+            best_text = (
+                f"Best: {best_name}  "
+                f"(Alignment: {best_result['alignment_score']:.4f}, "
+                f"Precision: {best_result['precision']:.4f}, "
+                f"Recall: {best_result['recall']:.4f})"
+            )
+            ttk.Label(best_frame, text=best_text,
+                      foreground="#44BB44", background="#1E1E2E",
+                      font=("Helvetica", 11, "bold")).pack(padx=10, pady=8)
+    
+            # N-1 Vulnerable edges
+            vuln_frame = ttk.LabelFrame(win, text="N-1 Vulnerable Edges")
+            vuln_frame.pack(fill=tk.X, padx=20, pady=5)
+    
+            vuln_text = ", ".join(
+                f"L{e['id']}({e['name']})"
+                for e in comparison.get("n1_vulnerable_details", [])
+            ) or "None"
+            ttk.Label(vuln_frame, text=vuln_text,
+                      foreground="#FF6B6B", background="#1E1E2E",
+                      wraplength=800, justify=tk.LEFT).pack(padx=10, pady=8)
+    
+            # Close button
+            ttk.Button(win, text="Close", command=win.destroy).pack(pady=10)
+    
+        def _vulnerability_analysis(self):
             """Run N-1 contingency-based vulnerability analysis and homology comparison."""
             if self._current_D is None:
                 messagebox.showwarning("No Data", "Compute VR first by selecting a metric.")

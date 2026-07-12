@@ -71,13 +71,16 @@ An interactive **Tkinter-based graph editor** that combines manual graph creatio
 ### 🔬 N-1 Contingency Analysis
 - **AC Newton-Raphson Power Flow** solver (pure numpy, no external dependencies)
 - **N-1 Contingency Analysis** — removes each line one at a time and checks:
-  - **Line overload**: flow on any remaining line > rate (thermal limit)
-  - **Voltage violation**: bus voltage outside [V_min, V_max]
-  - **Islanding**: grid becomes disconnected (multiple components)
+  - **Line overload**: flow on any remaining line > rate × overload_threshold (thermal limit)
+  - **Voltage violation**: bus voltage outside [V_min, V_max] (default: 0.9–1.1 p.u.)
+  - **Islanding**: grid becomes disconnected (multiple connected components)
 - **Homology Comparison** — compares N-1 vulnerable edges with persistent H1 cycle edges
   - Alignment score = |intersection| / total_edges
   - Precision, recall, specificity metrics
 - **Multi-metric comparison** — evaluates alignment across all distance metrics simultaneously
+  - GUI button "📊 Metrics vs N-1" in PowerGridTDAExplorer
+  - CLI tool: `python scripts/compare_metrics.py --grid 18`
+  - JSON/CSV export support
 
 ### 🤖 AI Analysis
 - Send graph diagram (as image) + topological data to **DeepSeek** via **OpenRouter**

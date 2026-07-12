@@ -56,20 +56,23 @@
 
 ### 미해결 이슈 (2026-07-12)
 
-#### P2: 테스트 및 검증
-- [ ] **실험 자동화 CLI 도구 부재**
-  - 우크라이나 그리드 로드 → 모든 메트릭 → TDA → 취약점 비교 → 리포트 생성 파이프라인 없음
-  - compare_metrics_vulnerability() 함수 존재하나 호출/표시 도구 없음
+#### 해결됨
+✅ **P2: 실험 자동화 CLI 도구 생성** (`scripts/compare_metrics.py`)
+   - 우크라이나 18-bus / 28-bus 지원
+   - 8개 메트릭 자동 계산 → N-1 취약점 비교 → 리포트 출력
+   - JSON/CSV export 지원
+   - Ukraine 18-bus 테스트 완료 (alignment 0.9600, PTDF Vector L2 최고)
 
-#### P2: GUI 개선
-- [ ] **compare_metrics_vulnerability GUI 미통합**
-  - 함수는 구현되었으나 GUI에서 호출/표시되지 않음
-  - 메트릭별 alignment score 시각화 필요
+✅ **P2: compare_metrics_vulnerability GUI 통합**
+   - power_grid_tda.py에 "📊 Metrics vs N-1" 버튼 추가
+   - _compare_metrics_vulnerability() 메서드 구현
+   - _show_metrics_vulnerability_window() 결과 창 (Treeview 테이블 + Best Metric 하이라이트)
+   - 기존 _vulnerability_analysis() 들여쓰기 버그 수정 (12-space → 8-space)
 
-#### P3: 문서화
-- [ ] **README.md 구버전 정보**
-  - "47 unit tests" → 실제 82개로 업데이트 필요
-  - vulnerability.py API 문서화 안 됨
-  - compare_metrics_vulnerability, KCLCurrentDistance 문서화 안 됨
-  - N-1 contingency analysis 기준 문서화 안 됨
-  - AC power flow solver 문서화 안 됨
+✅ **P3: README.md 최신화**
+   - 테스트 개수 82개로 업데이트 완료
+   - vulnerability.py API 문서 추가
+   - compare_metrics_vulnerability 문서 추가
+   - N-1 contingency analysis 기준 문서화
+   - AC power flow solver 문서화
+   - CLI 도구 문서화
