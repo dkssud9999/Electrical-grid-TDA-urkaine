@@ -1,4 +1,32 @@
-## 2026-07-12 15:30 — P1 구현 완료: LODFInverseDistance + KCLCurrentDistance GUI 통합
+## 2026-07-12 15:00 — 문서 정리: unsolved issues.txt 업데이트 (P0/P1 해결 표기)
+
+### 수행 작업
+1. **unsolved issues.txt 업데이트**
+   - P0 (AC 조류분석 기반 N-1 취약점 분석) 해결 표기
+   - P1 (LODFInverseDistance + KCLCurrentDistance GUI 통합) 해결 표기
+   - P1 핵심 메트릭 누락 섹션 제거
+   - 미해결 이슈를 P2/P3로 정리
+
+2. **Git 상태 확인**
+   - 수정된 파일: TODO.md, history.md, integration/grid_to_graph.py, integration/power_grid_tda.py, tda/vulnerability.py
+   - 추적되지 않은 파일: power_grid/ac_power_flow.py, power_grid/contingency.py, tests/test_contingency.py
+   - P1 작업 + P0 작업 모두 미커밋 상태
+
+### Test Results
+```
+82 passed in 0.57s
+```
+
+### Resolved Issues (from unsolved issues.txt)
+- ✅ P0 — AC 조류분석 기반 N-1 취약점 분석 + 호몰로지 비교 구현 완료
+- ✅ P1 — LODFInverseDistance + KCLCurrentDistance GUI 통합
+
+### Notes
+- README.md 업데이트 아직 필요 (47→82 tests, vulnerability API, N-1 기준 문서화)
+- TODO.md 업데이트 아직 필요
+- 커밋/푸시 아직 안 됨
+
+---
 
 ### 수행 작업
 1. **LODFInverseDistance 메트릭 구현** (`electrical_distance/metrics.py`)

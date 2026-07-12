@@ -216,5 +216,6 @@ class GridGraphConverter:
             "susceptances": self.susceptances,
             "bus_positions": self.bus_positions,
             "bus_labels": self.node_labels,
+                "grid_data": self.grid,  # Full grid data for N-1 contingency analysis
         }
 

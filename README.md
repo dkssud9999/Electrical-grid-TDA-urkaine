@@ -62,9 +62,22 @@ An interactive **Tkinter-based graph editor** that combines manual graph creatio
 - **Effective Resistance Distance** (via Laplacian pseudoinverse)
 - **Bus LODF Sensitivity Distance**
 - **PTDF Inverse Distance** (normalized to [0,1])
+- **LODF Inverse Distance** (pseudo-inverse of LODF matrix)
+- **KCL Current Distance** (KCL-based electrical distance)
 - **Hybrid Distance** (weighted combinations)
 - **Geodesic-Electrical Hybrid Distance**
 - Side-by-side metric comparison view
+
+### 🔬 N-1 Contingency Analysis
+- **AC Newton-Raphson Power Flow** solver (pure numpy, no external dependencies)
+- **N-1 Contingency Analysis** — removes each line one at a time and checks:
+  - **Line overload**: flow on any remaining line > rate (thermal limit)
+  - **Voltage violation**: bus voltage outside [V_min, V_max]
+  - **Islanding**: grid becomes disconnected (multiple components)
+- **Homology Comparison** — compares N-1 vulnerable edges with persistent H1 cycle edges
+  - Alignment score = |intersection| / total_edges
+  - Precision, recall, specificity metrics
+- **Multi-metric comparison** — evaluates alignment across all distance metrics simultaneously
 
 ### 🤖 AI Analysis
 - Send graph diagram (as image) + topological data to **DeepSeek** via **OpenRouter**
@@ -76,14 +89,21 @@ An interactive **Tkinter-based graph editor** that combines manual graph creatio
 - **[history.md](./history.md)** — Project change history and milestones
 
 ### ✅ Testing
-- **47 unit tests** covering:
+- **82 unit tests** covering:
+  - AC power flow solver (3-bus, 5-bus convergence, power balance)
+  - N-1 contingency analysis (3-bus, 5-bus, violation details)
+  - Cycle edge extraction from VR persistence (triangle, tree, square)
+  - Alignment score computation (perfect, partial, no overlap, empty)
+  - Homology comparison integration (compare_with_homology, compare_metrics_vulnerability)
   - PTDF matrix computation (shape, slack bus, edge cases)
-  - LODF matrix (shape, diagonal values)
+  - LODF matrix (shape, diagonal values, bridge line)
   - Effective resistance (symmetry, diagonal, single-line)
   - PTDF vector distance (symmetry, L1/L2 norms)
   - Bus LODF sensitivity (symmetry)
+  - LODF Inverse distance (positive, shape, 5-bus)
+  - KCL Current distance (compute, name, shape)
   - VR complex (initialization, persistence pairs, Betti numbers/curves, caching)
-  - Metric classes (all 6 implementations, edge cases, invalid input)
+  - Metric classes (all 8 implementations, edge cases, invalid input)
 - Run with: `PYTHONPATH=graph_editor python3 -m pytest graph_editor/tests/ -v`
 
 ---
@@ -190,10 +210,13 @@ graph_editor/
 │   └── metrics.py               # OOP metric classes (ABC + implementations)
 ├── tda/
 │   ├── __init__.py              # Package: "Topological Data Analysis..."
-│   └── vr_core.py               # Vietoris-Rips complex via union-find
+│   ├── vr_core.py               # Vietoris-Rips complex via union-find
+│   └── vulnerability.py         # N-1 contingency + homology comparison engine
 ├── power_grid/
-│   ├── __init__.py              # Package: "Power grid import..."
-│   └── importer.py              # Multi-format grid data parser
+│   ├── __init__.py              # Package: \"Power grid import...\"
+│   ├── importer.py              # Multi-format grid data parser
+│   ├── ac_power_flow.py         # AC Newton-Raphson power flow solver
+│   └── contingency.py           # N-1 contingency analysis for vulnerability
 ├── integration/
 │   ├── __init__.py              # Package: "Integration layer..."
 │   ├── grid_to_graph.py         # Grid data → GraphEditor converter
@@ -216,7 +239,10 @@ graph_editor/
 | **`PTDFVectorDistance`** | `electrical_distance/metrics.py` | Distance = \|\|PTDF_i - PTDF_j\|\|_p |
 | **`EffectiveResistanceDistance`** | `electrical_distance/metrics.py` | True electrical distance via Laplacian pseudoinverse |
 | **`BusLODFDistance`** | `electrical_distance/metrics.py` | Distance based on LODF sensitivity vectors |
-| **`HybridDistance`** | `electrical_distance/metrics.py` | Weighted combination of multiple metrics |
+| **`LODFInverseDistance`** | `electrical_distance/metrics.py` | Distance = pseudo-inverse of LODF matrix |
+| **`KCLCurrentDistance`** | `electrical_distance/metrics.py` | KCL-based current distribution distance |
+| **`ACPowerFlow`** | `power_grid/ac_power_flow.py` | Newton-Raphson AC power flow solver |
+| **`N1ContingencyAnalyzer`** | `power_grid/contingency.py` | N-1 contingency analysis for grid vulnerability |
 
 ### Module Interaction Flows
 
@@ -318,6 +344,8 @@ User draws a graph manually
 | `EffectiveResistanceDistance()` | Symmetric distance matrix | (e_i-e_j)ᵀ·L⁺·(e_i-e_j) |
 | `BusLODFDistance()` | Symmetric distance matrix | \|\|LODF_sens_i - LODF_sens_j\|\|₂ |
 | `PTDFInverseDistance(transform="inverse")` | Normalized [0,1] matrix | 1/(1 + d), exp(-d²/σ²), or logistic(d) |
+| `LODFInverseDistance()` | Symmetric distance matrix | Pseudo-inverse of LODF matrix |
+| `KCLCurrentDistance()` | Symmetric distance matrix | KCL-based current distribution distance |
 | `HybridDistance(metrics, weights)` | Weighted combination | Σ w_k · normalize(d_k) |
 | `GeodesicElectricalHybrid(alpha=1.0, beta=1.0)` | Combined matrix | α·geo + β·elec |
 
@@ -330,7 +358,17 @@ User draws a graph manually
 | `betti_numbers(alpha)` | `(beta0, beta1)` | Betti numbers at threshold α |
 | `betti_curves()` | `(thresholds, b0_vals, b1_vals)` | Betti curves across all thresholds |
 
-### Power Grid Import (`power_grid/`)
+#### `vulnerability.py` — Vulnerability Detection Engine
+
+| Function | Returns | Description |
+|---|---|---|
+| `analyze_n1_vulnerability(grid_data, **kwargs)` | Dict | Run N-1 contingency analysis on grid |
+| `get_cycle_edges(distance_matrix, bus_pairs)` | Set of tuples | Extract edges in persistent H1 cycles |
+| `get_cycle_edge_ids(distance_matrix, bus_pairs, line_id_map)` | Set of ints | Get line IDs of H1 cycle edges |
+| `compare_with_homology(grid_data, distance_matrix, **kwargs)` | Dict | Compare N-1 vulnerability with homology detection |
+| `compare_metrics_vulnerability(grid_data, distance_matrices, **kwargs)` | Dict | Compare homology alignment across multiple metrics |
+
+### Power Grid Import & Analysis (`power_grid/`)
 
 #### `importer.py`
 | Function | Returns | Description |
@@ -342,6 +380,21 @@ User draws a graph manually
 | `load_grid(path)` | Grid dict | Auto-detect format by extension |
 | `get_test_grid_3bus()` | Grid dict | 3-bus test system (Slack-PV-PQ) |
 | `get_test_grid_5bus()` | Grid dict | 5-bus meshed loop system |
+
+#### `ac_power_flow.py`
+| Class/Method | Returns | Description |
+|---|---|---|
+| `ACPowerFlow(n_bus, bus_pairs, r_list, x_list, base_mva=100.0)` | — | Newton-Raphson AC power flow solver (pure numpy) |
+| `.run_power_flow(p_inj, q_inj, slack_bus, pv_buses, ...)` | Dict | Solve AC power flow, returns V, theta, branch_flows, converged status |
+
+#### `contingency.py`
+| Class/Function | Returns | Description |
+|---|---|---|
+| `N1ContingencyAnalyzer(grid_data, v_min, v_max, overload_threshold)` | — | N-1 contingency analysis for grid vulnerability |
+| `.analyze()` | Dict | Run N-1 on all lines: vulnerable_edges, violation_details, vulnerability_ratio |
+| `analyze_grid_vulnerability(grid_data, **kwargs)` | Dict | Convenience one-shot vulnerability analysis |
+| `get_cycle_edges_from_vr(distance_matrix, bus_pairs)` | Set of tuples | Extract edges in persistent H1 cycles from VR homology |
+| `compute_alignment_score(vulnerable_edges, cycle_edge_ids, total_edges)` | Dict | Compute TP/FP/FN/TN, alignment score, precision, recall, specificity |
 
 **Standard Grid Dict Schema:**
 ```python
@@ -376,24 +429,25 @@ User draws a graph manually
 - `"Effective Resistance"`
 - `"Bus LODF Sensitivity"`
 - `"PTDF Inverse"`
+- `\"LODF Inverse Distance\"`
+- `\"KCL Current Distance\"`
 - `"Geographic (Euclidean)"`
 
 ---
 
 ## Testing
 
-The project currently has a test package skeleton (`tests/__init__.py`) but no implemented test cases. To run:
+The project has **82 unit tests** covering all modules. To run:
 
 ```bash
-python3 -m pytest graph_editor/tests/
+PYTHONPATH=graph_editor python3 -m pytest graph_editor/tests/ -v
 ```
 
-### Test Coverage Needed
-- `ptdf_calculator.py` — matrix dimensions, slack bus handling, condition number warnings
-- `vr_core.py` — persistence pairs correctness on known graphs (triangle, square, disconnected)
-- `importer.py` — parse correctness for each format
-- `grid_to_graph.py` — node/edge count after conversion
-- `metrics.py` — matrix symmetry, distance properties
+### Test Modules
+- `tests/test_vr_core.py` — Vietoris-Rips complex, persistence pairs, Betti numbers, caching
+- `tests/test_ptdf_calculator.py` — PTDF, LODF, effective resistance, edge cases
+- `tests/test_metrics.py` — All 8 distance metric classes
+- `tests/test_contingency.py` — AC power flow, N-1 analysis, cycle extraction, alignment scores
 
 ---
 

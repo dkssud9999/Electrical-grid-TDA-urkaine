@@ -1,4 +1,22 @@
 ## 해결된 이슈
+✅ 해결됨 (2026-07-12 15:00): **P0 — AC 조류분석 기반 N-1 취약점 분석 + 호몰로지 비교 구현 완료**
+   - `power_grid/ac_power_flow.py`: Newton-Raphson AC 조류분석 솔버 (순수 numpy)
+   - `power_grid/contingency.py`: N1ContingencyAnalyzer 클래스
+     - 각 라인 제거 후 AC 조류분석 재실행 → 3가지 기준으로 취약점 판별
+     - 취약점 기준: 선로 과부하(flow > rate), 전압 위반(V < 0.9 or V > 1.1), 섬격리(islanding)
+   - `tda/vulnerability.py`: compare_with_homology(), compare_metrics_vulnerability()
+     - alignment score = |intersection| / total_edges
+     - precision, recall, specificity 포함
+   - `tests/test_contingency.py`: AC 조류분석 + N-1 + 사이클 추출 + 정렬 점수 통합 테스트 23개
+   - 총 82개 테스트 모두 통과
+
+✅ 해결됨 (2026-07-12 14:15): **P1 — LODFInverseDistance + KCLCurrentDistance GUI 통합**
+   - LODFInverseDistance 메트릭 구현 (`electrical_distance/metrics.py`)
+   - KCLCurrentDistance GUI 통합 (`integration/power_grid_tda.py`)
+   - compare_metrics_vulnerability() metric_fns에 추가
+   - 단위 테스트 6개 추가 (총 53→59)
+   - 자세한 내용은 history.md 2026-07-12 14:15 참조
+
 ✅ 해결됨 (2026-07-11 22:30): **Bus LODF Sensitivity NaN 전파 버그 수정**
    - 원인: `compute_lodf()`에서 bridge/leaf 라인 (분모=0)에 대해 `np.nan`을 설정하여 전체 거리 행렬이 NaN이 됨
    - 수정: bridge 라인 LODF를 `np.nan` 대신 `0.0`으로 설정 (표준 근사법)
@@ -36,25 +54,9 @@
 
 ---
 
-### 미해결 이슈 (2026-07-12 — Gap Analysis 기준)
-
-#### P1: 핵심 메트릭 누락
-- [ ] **LODFInverseDistance 메트릭 미구현**
-  - 방법론에서 "LODF 역수 기반 거리"가 가장 가능성 있는 계획
-  - 현재 BusLODFDistance는 LODF sensitivity 벡터 사용 중 (LODF 역수 아님)
-  - LODF 행렬의 pseudo-inverse를 직접 거리로 사용하는 메트릭 구현 필요
-  - `electrical_distance/metrics.py`에 새 클래스, GUI 등록, compare_metrics_vulnerability 포함, 단위 테스트 필요
-
-- [ ] **KCLCurrentDistance GUI 미통합**
-  - 클래스는 구현되어 있으나 power_grid_tda.py METRICS에 등록되지 않음
-  - compare_metrics_vulnerability() metric_fns에 포함되지 않음
-  - 단위 테스트 없음
+### 미해결 이슈 (2026-07-12)
 
 #### P2: 테스트 및 검증
-- [ ] **tda/vulnerability.py 단위 테스트 부재**
-  - compute_vulnerability_scores, rank_vulnerable_buses, compare_metrics_vulnerability, _detect_cycle_members 모두 테스트 없음
-  - 53개 기존 테스트는 모두 PTDF/VR 코어만 커버
-
 - [ ] **실험 자동화 CLI 도구 부재**
   - 우크라이나 그리드 로드 → 모든 메트릭 → TDA → 취약점 비교 → 리포트 생성 파이프라인 없음
   - compare_metrics_vulnerability() 함수 존재하나 호출/표시 도구 없음
@@ -66,6 +68,8 @@
 
 #### P3: 문서화
 - [ ] **README.md 구버전 정보**
-  - "47 unit tests" → 실제 53개로 업데이트 필요
+  - "47 unit tests" → 실제 82개로 업데이트 필요
   - vulnerability.py API 문서화 안 됨
   - compare_metrics_vulnerability, KCLCurrentDistance 문서화 안 됨
+  - N-1 contingency analysis 기준 문서화 안 됨
+  - AC power flow solver 문서화 안 됨

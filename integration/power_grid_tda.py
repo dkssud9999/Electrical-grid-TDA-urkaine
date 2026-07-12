@@ -25,7 +25,7 @@ from electrical_distance.ptdf_calculator import (
     build_incidence_matrix,
 )
 from tda.vr_core import VRComplex
-from tda.vulnerability import compute_vulnerability_scores, rank_vulnerable_buses, compute_vulnerability_summary
+from tda.vulnerability import compare_with_homology
 
 
 # ─── Distance metric registry ────────────────────────────────
@@ -593,152 +593,223 @@ class PowerGridTDAExplorer:
         ttk.Button(win, text="Close", command=win.destroy).pack(pady=5)
 
     def _vulnerability_analysis(self):
-        """Run vulnerability analysis on the current metric and show results."""
-        if self._current_D is None or self._current_vr is None:
-            messagebox.showwarning("No Data", "Compute VR first by selecting a metric.")
-            return
+            """Run N-1 contingency-based vulnerability analysis and homology comparison."""
+            if self._current_D is None:
+                messagebox.showwarning("No Data", "Compute VR first by selecting a metric.")
+                return
+    
+            metric_name = self._metric_var.get()
+            D = self._current_D
+    
+            # Get grid_data from electrical data (added by GridGraphConverter)
+            grid_data = self.data.get("grid_data", None)
+            if grid_data is None:
+                messagebox.showerror("Error",
+                    "No grid data available. Please import a power grid first.")
+                return
+    
+            # Run N-1 contingency + homology comparison
+            try:
+                result = compare_with_homology(grid_data, D)
+            except Exception as e:
+                messagebox.showerror("Analysis Error",
+                    f"Vulnerability analysis failed:\n{e}")
+                return
+    
+            # Show results window
+            self._show_vulnerability_window(result, metric_name)
+    
+            # Color VR nodes by vulnerability + cycle membership
+            self._color_vr_nodes_by_vulnerability(
+                self._vr_canvas, grid_data, result)
 
-        metric_name = self._metric_var.get()
-        D = self._current_D
-        vr = self._current_vr
-
-        # Get bus labels
-        bus_labels = self.data.get("bus_labels", None)
-        if bus_labels is None:
-            bus_labels = [f"B{i}" for i in range(D.shape[0])]
-
-        # Compute vulnerability summary
-        summary = compute_vulnerability_summary(D, vr, bus_labels=bus_labels, top_k=5)
-
-        # Show results window
-        self._show_vulnerability_window(summary, metric_name)
-
-        # Color VR nodes by vulnerability
-        self._color_vr_nodes_by_vulnerability(self._vr_canvas, summary["scores"])
-
-    def _show_vulnerability_window(self, summary: dict, metric_name: str):
-        """Display vulnerability analysis results in a new window."""
+    def _show_vulnerability_window(self, result: dict, metric_name: str):
+        """Display N-1 contingency + homology comparison results."""
         win = tk.Toplevel(self.win)
         win.title(f"Vulnerability Analysis — {metric_name}")
-        win.geometry("700x600")
+        win.geometry("800x700")
         win.configure(bg="#1E1E2E")
 
         # Title
-        title = ttk.Label(win, text="⚠ Bus Vulnerability Ranking",
+        title = ttk.Label(win, text="N-1 Contingency + Homology Comparison",
                           font=("Helvetica", 14, "bold"),
                           foreground="#FF6B6B", background="#1E1E2E")
         title.pack(pady=(10, 5))
 
-        # Summary info
+        # Summary bar
         info_frame = ttk.Frame(win)
         info_frame.pack(fill=tk.X, padx=20, pady=5)
 
+        n1 = result["n1_analysis_summary"]
         summary_text = (
-            f"Total Buses: {summary['n_buses']}  |  "
-            f"β₀ = {summary['overall_beta0']}  |  "
-            f"β₁ = {summary['overall_beta1']}  |  "
-            f"High Risk (>0.7): {summary['n_vulnerable_high']}  |  "
-            f"Medium Risk (0.4-0.7): {summary['n_vulnerable_medium']}"
+            f"Buses: {result['n_bus']}  |  "
+            f"Lines: {result['n_line']}  |  "
+            f"N-1 Vulnerable: {result['n_vulnerable']}/{result['n_line']} "
+            f"({result['n1_analysis']['vulnerability_ratio']*100:.1f}%)  |  "
+            f"H1 Cycle Edges: {result['n_cycle_edges']}"
         )
         ttk.Label(info_frame, text=summary_text,
                   foreground="#CCCCCC", background="#1E1E2E").pack()
 
-        # Ranking table
-        table_frame = ttk.LabelFrame(win, text="Vulnerability Ranking (Top 5)")
-        table_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        # Alignment Score
+        alignment_frame = ttk.LabelFrame(win, text="Alignment: Homology vs N-1 AC Analysis")
+        alignment_frame.pack(fill=tk.X, padx=20, pady=5)
 
-        # Treeview for ranking
-        columns = ("rank", "bus", "score", "level")
-        tree = ttk.Treeview(table_frame, columns=columns, show="headings",
-                            height=8, selectmode="browse")
-        tree.heading("rank", text="Rank")
-        tree.heading("bus", text="Bus")
-        tree.heading("score", text="Score")
-        tree.heading("level", text="Risk Level")
-        tree.column("rank", width=60, anchor=tk.CENTER)
-        tree.column("bus", width=100, anchor=tk.CENTER)
-        tree.column("score", width=120, anchor=tk.CENTER)
-        tree.column("level", width=150, anchor=tk.CENTER)
+        align = result["alignment_score"]
+        prec = result["precision"]
+        rec = result["recall"]
+        spec = result["specificity"]
 
-        scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=tree.yview)
-        tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        tree.pack(fill=tk.BOTH, expand=True)
+        align_text = (
+            f"Alignment Score: {align:.4f}  "
+            f"(Intersection / Total Edges = {len(result['intersection'])} / {result['n_line']})\n"
+            f"Precision: {prec:.4f}  |  "
+            f"Recall: {rec:.4f}  |  "
+            f"Specificity: {spec:.4f}"
+        )
+        ttk.Label(alignment_frame, text=align_text,
+                  foreground="#FFD700", background="#1E1E2E",
+                  font=("Helvetica", 11)).pack(padx=10, pady=8)
 
-        # Style for treeview
-        style = ttk.Style()
-        style.theme_use("clam")
-        style.configure("Treeview", background="#2A2A3E", foreground="white",
-                        fieldbackground="#2A2A3E", font=("Helvetica", 10))
-        style.configure("Treeview.Heading", background="#3A3A5E", foreground="white",
-                        font=("Helvetica", 10, "bold"))
+        # Vulnerable Edges (N-1) Table
+        vuln_frame = ttk.LabelFrame(win, text="N-1 Vulnerable Edges (AC Power Flow)")
+        vuln_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
 
-        # Populate rows
-        for rank, (idx, score, label) in enumerate(summary["ranked"], 1):
-            if score > 0.7:
-                level = "🔴 High Risk"
-                tag = "high"
-            elif score > 0.4:
-                level = "🟡 Medium Risk"
-                tag = "medium"
-            else:
-                level = "🟢 Low Risk"
-                tag = "low"
+        vuln_columns = ("id", "name", "violations")
+        vuln_tree = ttk.Treeview(vuln_frame, columns=vuln_columns, show="headings",
+                                 height=6, selectmode="browse")
+        vuln_tree.heading("id", text="Line ID")
+        vuln_tree.heading("name", text="Name")
+        vuln_tree.heading("violations", text="Violations")
+        vuln_tree.column("id", width=60, anchor=tk.CENTER)
+        vuln_tree.column("name", width=120, anchor=tk.W)
+        vuln_tree.column("violations", width=200, anchor=tk.W)
 
-            tree.insert("", tk.END, values=(rank, label, f"{score:.4f}", level),
-                        tags=(tag,))
+        vuln_scroll = ttk.Scrollbar(vuln_frame, orient=tk.VERTICAL, command=vuln_tree.yview)
+        vuln_tree.configure(yscrollcommand=vuln_scroll.set)
+        vuln_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        vuln_tree.pack(fill=tk.BOTH, expand=True)
 
-        tree.tag_configure("high", foreground="#FF6B6B")
-        tree.tag_configure("medium", foreground="#FFD700")
-        tree.tag_configure("low", foreground="#4A90D9")
+        for edge in n1.get("vulnerable_edges_detail", []):
+            violations_str = ", ".join(edge["violations"])
+            vuln_tree.insert("", tk.END,
+                             values=(edge["id"], edge["name"], violations_str),
+                             tags=("vuln",))
 
-        # Interpretation section
+        vuln_tree.tag_configure("vuln", foreground="#FF6B6B")
+
+        # Cycle Edges (Homology) Table
+        cycle_frame = ttk.LabelFrame(win, text="H1 Cycle Edges (Homology Candidates)")
+        cycle_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
+
+        cycle_columns = ("id", "name", "in_vulnerable")
+        cycle_tree = ttk.Treeview(cycle_frame, columns=cycle_columns, show="headings",
+                                  height=6, selectmode="browse")
+        cycle_tree.heading("id", text="Line ID")
+        cycle_tree.heading("name", text="Name")
+        cycle_tree.heading("in_vulnerable", text="In N-1 Vulnerable?")
+        cycle_tree.column("id", width=60, anchor=tk.CENTER)
+        cycle_tree.column("name", width=120, anchor=tk.W)
+        cycle_tree.column("in_vulnerable", width=140, anchor=tk.CENTER)
+
+        cycle_scroll = ttk.Scrollbar(cycle_frame, orient=tk.VERTICAL, command=cycle_tree.yview)
+        cycle_tree.configure(yscrollcommand=cycle_scroll.set)
+        cycle_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        cycle_tree.pack(fill=tk.BOTH, expand=True)
+
+        # Build name lookup for cycle edges
+        line_names = {}
+        for l in result["n1_analysis"]["violation_details"]:
+            detail = result["n1_analysis"]["violation_details"][l]
+            line_names[l] = detail["line_name"]
+
+        for cid in sorted(result["cycle_edge_ids"]):
+            is_vuln = cid in result["vulnerable_edge_ids"]
+            in_vuln_str = "YES" if is_vuln else "No"
+            tag = "match" if is_vuln else "nomatch"
+            cycle_tree.insert("", tk.END,
+                              values=(cid, line_names.get(cid, f"L{cid}"), in_vuln_str),
+                              tags=(tag,))
+
+        cycle_tree.tag_configure("match", foreground="#44BB44")
+        cycle_tree.tag_configure("nomatch", foreground="#FFAA00")
+
+        # Homology Info
+        homo_info = result.get("homology", {})
+        if homo_info:
+            homo_frame = ttk.LabelFrame(win, text="Persistence Homology Info")
+            homo_frame.pack(fill=tk.X, padx=20, pady=5)
+
+            h0_n = homo_info["n_h0"]
+            h1_n = homo_info["n_h1"]
+            h1_persistent = homo_info["n_h1_persistent"]
+            max_d = homo_info["max_distance"]
+
+            homo_text = (
+                f"H0 pairs: {h0_n}  |  "
+                f"H1 pairs: {h1_n}  |  "
+                f"Persistent H1: {h1_persistent}  |  "
+                f"Max distance: {max_d:.4f}"
+            )
+            ttk.Label(homo_frame, text=homo_text,
+                      foreground="#CCCCCC", background="#1E1E2E").pack(padx=10, pady=5)
+
+        # Interpretation
         interp_frame = ttk.LabelFrame(win, text="Interpretation")
         interp_frame.pack(fill=tk.X, padx=20, pady=10)
 
-        n_high = summary["n_vulnerable_high"]
-        n_medium = summary["n_vulnerable_medium"]
-        b1 = summary["overall_beta1"]
-
-        interp_lines = []
-        if n_high > 0:
+        interp_lines = [
+            f"* {result['n_vulnerable']} out of {result['n_line']} lines are N-1 vulnerable "
+            f"(AC power flow analysis).",
+        ]
+        if result["n_cycle_edges"] > 0:
             interp_lines.append(
-                f"• {n_high} bus(es) show HIGH vulnerability — these buses are electrically "
-                "isolated or act as critical bridges in the distance space."
+                f"* {result['n_cycle_edges']} line(s) belong to persistent H1 cycles "
+                f"(homology candidates)."
             )
-        if n_medium > 0:
             interp_lines.append(
-                f"• {n_medium} bus(es) show MEDIUM vulnerability — monitor these for potential issues."
+                f"* Alignment score = {align:.4f}: homology cycle edges match "
+                f"N-1 vulnerable edges at {align*100:.1f}% of total edges."
             )
-        if b1 == 0:
-            interp_lines.append(
-                "• No H₁ cycles detected — the grid has a tree-like topology with no redundant paths."
-            )
+            if prec > 0.5:
+                interp_lines.append(
+                    f"* Precision = {prec:.4f}: {prec*100:.1f}% of cycle edges are "
+                    f"actually N-1 vulnerable."
+                )
         else:
             interp_lines.append(
-                f"• {b1} H₁ cycle(s) detected — these provide redundancy and reduce vulnerability."
+                "* No H1 cycles detected - the grid has a tree-like topology "
+                "with no redundant paths."
             )
 
-        interp_text = "\n".join(interp_lines) if interp_lines else "• No significant vulnerabilities detected."
+        interp_text = "\n".join(interp_lines)
         ttk.Label(interp_frame, text=interp_text,
                   foreground="#CCCCCC", background="#1E1E2E",
-                  wraplength=600, justify=tk.LEFT).pack(padx=10, pady=10)
+                  wraplength=700, justify=tk.LEFT).pack(padx=10, pady=10)
 
         # Close button
         ttk.Button(win, text="Close", command=win.destroy).pack(pady=10)
 
-    def _color_vr_nodes_by_vulnerability(self, canvas, scores):
-        """Recolor VR view nodes based on vulnerability scores (Red→Yellow→Green)."""
-        # Find all node ovals and text items in the canvas
-        # We need to delete and redraw the nodes with new colors
-        # The nodes are drawn in _draw_vr_view, so we'll modify them there
-
-        # For now, just update the colors on the existing canvas
-        # Nodes are drawn as ovals; we need to find them by tag or position
-        # Since we don't have tags, we'll use the stored node positions
-
-        if not self._node_positions or len(self._node_positions) != len(scores):
+    def _color_vr_nodes_by_vulnerability(self, canvas, grid_data, result):
+        """Recolor VR view nodes: red if incident to vulnerable edge, yellow if cycle member."""
+        if not self._node_positions:
             return
+
+        vulnerable_edge_ids = result["vulnerable_edge_ids"]
+        cycle_edge_ids = result["cycle_edge_ids"]
+
+        # Find buses incident to vulnerable / cycle edges
+        vuln_buses = set()
+        cycle_buses = set()
+        for l in grid_data.get("lines", []):
+            lid = l["id"]
+            f, t = l["from_bus"], l["to_bus"]
+            if lid in vulnerable_edge_ids:
+                vuln_buses.add(f)
+                vuln_buses.add(t)
+            if lid in cycle_edge_ids:
+                cycle_buses.add(f)
+                cycle_buses.add(t)
 
         cw = self.CANVAS_W
         ch = self.CANVAS_H
@@ -758,14 +829,12 @@ class PowerGridTDAExplorer:
 
         r = 14
         for i, (sx, sy) in enumerate(scaled):
-            # Color: Red (high vuln) → Yellow (medium) → Green (low)
-            s = float(scores[i])
-            if s > 0.7:
-                color = "#FF4444"  # Red — high
-            elif s > 0.4:
-                color = "#FFAA00"  # Yellow — medium
+            if i in vuln_buses:
+                color = "#FF4444"  # Red - incident to N-1 vulnerable edge
+            elif i in cycle_buses:
+                color = "#FFAA00"  # Yellow - in H1 cycle
             else:
-                color = "#44BB44"  # Green — low
+                color = "#44BB44"  # Green - neither
 
             canvas.create_oval(sx - r, sy - r, sx + r, sy + r,
                                fill=color, outline="white", width=2,
@@ -773,4 +842,3 @@ class PowerGridTDAExplorer:
             canvas.create_text(sx, sy, text=str(i),
                                fill="white", font=("Helvetica", 9, "bold"),
                                tags=("vuln_label",))
-
